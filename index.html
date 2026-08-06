@@ -1,0 +1,941 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#241d15" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Greenhouse Ledger" />
+<meta name="description" content="An offline field log for plants, care routines, growth, and terrarium builds." />
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" href="./assets/icons/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="./assets/icons/icon-192.png" />
+<title>Greenhouse Ledger</title>
+<style>
+:root{
+  --soil:#241d15;
+  --soil-2:#372b1c;
+  --card:#3a3020;
+  --card-2:#453723;
+  --moss:#5c7248;
+  --moss-light:#8ba46c;
+  --clay:#bd6d3f;
+  --clay-light:#d68c5f;
+  --parchment:#eee6d3;
+  --sand:#cbb586;
+  --water:#5c8f88;
+  --ink:#eee6d3;
+  --ink-dim:#c9bd9e;
+  --line: rgba(238,230,211,0.14);
+  --danger:#c96b4f;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(139,164,108,0.10), transparent),
+    radial-gradient(ellipse 700px 500px at 100% 10%, rgba(189,109,63,0.08), transparent),
+    var(--soil);
+  color:var(--ink);
+  font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  min-height:100vh;
+}
+.wrap{max-width:920px;margin:0 auto;padding:28px 20px 60px;}
+
+/* Header */
+.header{margin-bottom:22px;}
+.eyebrow{
+  font-family:"JetBrains Mono","SFMono-Regular",Consolas,monospace;
+  font-size:11px;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color:var(--moss-light);
+  margin-bottom:6px;
+}
+h1{
+  font-family:Fraunces,Georgia,"Times New Roman",serif;
+  font-weight:600;
+  font-size:38px;
+  margin:0 0 6px;
+  letter-spacing:-0.01em;
+}
+.sub{color:var(--ink-dim);font-size:14.5px;max-width:560px;line-height:1.5;}
+
+/* Tabs */
+.tabs{
+  display:flex;gap:6px;margin:26px 0 20px;
+  border-bottom:1px solid var(--line);
+  flex-wrap:wrap;
+}
+.tab{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+  background:none;border:none;color:var(--ink-dim);
+  padding:10px 14px 12px;
+  cursor:pointer;
+  position:relative;
+  transition:color .15s ease;
+}
+.tab:hover{color:var(--parchment);}
+.tab.active{color:var(--parchment);}
+.tab.active::after{
+  content:'';position:absolute;left:8px;right:8px;bottom:-1px;height:2px;
+  background:var(--clay-light);
+}
+.tab .count{
+  font-size:10px;color:var(--soil);background:var(--moss-light);
+  border-radius:20px;padding:1px 6px;margin-left:6px;
+}
+
+/* Section label */
+.section-label{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--ink-dim);margin:28px 0 12px;
+  display:flex;align-items:center;gap:10px;
+}
+.section-label::after{content:'';flex:1;height:1px;background:var(--line);}
+
+/* Cards */
+.card{
+  background:linear-gradient(180deg, var(--card), var(--card-2));
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:16px 18px;
+  margin-bottom:12px;
+  position:relative;
+}
+.card.tent{border-left:3px solid var(--water);}
+.card.room{border-left:3px solid var(--moss-light);}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+.plant-name{
+  font-family:'Fraunces',serif;font-weight:500;font-size:19px;
+}
+.plant-species{
+  font-size:12.5px;color:var(--ink-dim);font-style:italic;margin-top:2px;
+}
+.due-row{display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;}
+.due-chip{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11.5px;
+  padding:5px 10px;
+  border-radius:6px;
+  border:1px solid var(--line);
+  display:flex;align-items:center;gap:6px;
+}
+.due-ok{color:var(--moss-light);}
+.due-soon{color:var(--clay-light);}
+.due-late{color:var(--danger);border-color:rgba(201,107,79,0.5);}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block;}
+
+.card-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+button.btn{
+  font-family:'Inter',sans-serif;
+  font-size:12.5px;font-weight:500;
+  background:var(--soil-2);
+  border:1px solid var(--line);
+  color:var(--ink);
+  padding:7px 12px;
+  border-radius:7px;
+  cursor:pointer;
+  transition:all .15s ease;
+}
+button.btn:hover{border-color:var(--moss-light);color:var(--moss-light);}
+button.btn.primary{background:var(--moss);border-color:var(--moss);color:var(--parchment);}
+button.btn.primary:hover{background:var(--moss-light);color:var(--soil);}
+button.btn.ghost{background:none;color:var(--ink-dim);border:none;padding:7px 4px;}
+button.btn.ghost:hover{color:var(--danger);}
+button.btn.small{padding:4px 9px;font-size:11.5px;}
+
+.notes-toggle{
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-dim);
+  cursor:pointer;margin-top:10px;display:inline-block;
+}
+.notes-toggle:hover{color:var(--moss-light);}
+.notes-list{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;}
+.note-item{font-size:13px;margin-bottom:8px;line-height:1.4;}
+.note-date{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--moss-light);margin-right:6px;}
+.note-add{display:flex;gap:6px;margin-top:8px;}
+.note-add input{flex:1;}
+
+/* Forms */
+input, select, textarea{
+  background:var(--soil-2);
+  border:1px solid var(--line);
+  color:var(--ink);
+  border-radius:6px;
+  padding:8px 10px;
+  font-family:'Inter',sans-serif;
+  font-size:13px;
+}
+input:focus, select:focus, textarea:focus{outline:none;border-color:var(--moss-light);}
+.add-form{
+  display:grid;grid-template-columns:1.4fr 1fr 0.8fr 0.8fr auto;gap:8px;
+  margin-bottom:18px;align-items:end;
+}
+.add-form label{font-size:10.5px;color:var(--ink-dim);display:block;margin-bottom:4px;font-family:'JetBrains Mono',monospace;letter-spacing:.03em;}
+.add-form input,.add-form select{width:100%;}
+@media (max-width:720px){.add-form{grid-template-columns:1fr 1fr;}}
+
+.empty{
+  color:var(--ink-dim);font-size:13.5px;font-style:italic;
+  padding:20px;text-align:center;border:1px dashed var(--line);border-radius:10px;
+}
+
+/* Today tab */
+.today-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 16px;background:var(--card);border:1px solid var(--line);
+  border-radius:9px;margin-bottom:8px;gap:10px;flex-wrap:wrap;
+}
+.today-left{display:flex;align-items:center;gap:10px;}
+.today-space{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-dim);text-transform:uppercase;}
+
+/* Terrarium */
+.terra-layout{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+@media (max-width:760px){.terra-layout{grid-template-columns:1fr;}}
+.terra-tasks .task{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  border:1px solid var(--line);border-radius:8px;margin-bottom:8px;cursor:pointer;
+  background:var(--card);
+}
+.terra-tasks .task.done{border-color:var(--moss-light);}
+.task-check{
+  width:18px;height:18px;border-radius:5px;border:1.5px solid var(--ink-dim);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  font-size:12px;color:var(--soil);
+}
+.task.done .task-check{background:var(--moss-light);border-color:var(--moss-light);}
+.task-text{font-size:13.5px;}
+.task-text .task-label{font-weight:500;}
+.task-text .task-sub{color:var(--ink-dim);font-size:11.5px;display:block;margin-top:1px;}
+.terra-svg-wrap{
+  background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:14px;display:flex;align-items:center;justify-content:center;
+}
+.build-notes{margin-top:24px;}
+
+/* Footer */
+.footer{
+  margin-top:50px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:11.5px;color:var(--ink-dim);font-family:'JetBrains Mono',monospace;
+}
+.footer a{color:var(--ink-dim);cursor:pointer;text-decoration:underline;}
+.footer a:hover{color:var(--danger);}
+
+.toast{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  background:var(--moss);color:var(--parchment);padding:9px 16px;border-radius:20px;
+  font-size:12.5px;font-family:'Inter',sans-serif;
+  opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;
+  z-index:100;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+/* Identify */
+.drop-area{
+  border:1.5px dashed var(--line);border-radius:10px;
+  min-height:180px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;background:var(--card);margin-bottom:12px;overflow:hidden;
+  transition:border-color .15s ease;
+}
+.drop-area:hover{border-color:var(--moss-light);}
+.drop-hint{color:var(--ink-dim);font-size:13px;padding:20px;text-align:center;}
+.img-preview{max-width:100%;max-height:280px;display:block;}
+.confidence-badge{
+  font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;
+  color:var(--ink-dim);border:1px solid var(--line);border-radius:20px;
+  padding:2px 8px;margin-left:8px;vertical-align:middle;letter-spacing:.04em;
+}
+button.btn:disabled{opacity:0.55;cursor:default;}
+button.btn:disabled:hover{border-color:var(--line);color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- storage ---------- */
+const DB_NAME = 'greenhouse-ledger';
+const DB_VERSION = 1;
+const STORE_NAME = 'app-data';
+
+function openDatabase(){
+  return new Promise((resolve,reject)=>{
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if(!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function loadData(key, fallback){
+  try{
+    const db = await openDatabase();
+    return await new Promise((resolve,reject)=>{
+      const tx = db.transaction(STORE_NAME,'readonly');
+      const request = tx.objectStore(STORE_NAME).get(key);
+      request.onsuccess = () => resolve(request.result === undefined ? fallback : request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }catch(e){ return fallback; }
+}
+async function saveData(key, value){
+  try{
+    const db = await openDatabase();
+    await new Promise((resolve,reject)=>{
+      const tx = db.transaction(STORE_NAME,'readwrite');
+      tx.objectStore(STORE_NAME).put(value,key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }catch(e){ console.error('save failed', key, e); }
+}
+
+const DEFAULT_LAYERS = [
+  {key:'drainage', label:'Drainage layer', sub:'LECA / clay balls', done:false, date:null},
+  {key:'barrier', label:'Barrier layer', sub:'mesh or fabric', done:false, date:null},
+  {key:'substrate', label:'Substrate', sub:'soil mix', done:false, date:null},
+  {key:'hardscape', label:'Hardscape', sub:'wood & rock', done:false, date:null},
+  {key:'planting', label:'Planting', sub:'live plants & moss', done:false, date:null},
+  {key:'leaflitter', label:'Leaf litter & clean-up crew', sub:'isopods / springtails', done:false, date:null},
+  {key:'systems', label:'Systems', sub:'misting, hygrometer, lighting', done:false, date:null},
+];
+
+const PLANT_CATALOG = [
+  {commonName:'Golden Pothos',scientificName:'Epipremnum aureum',traits:['vine','heart','variegated'],light:'bright indirect light',waterDays:8,feedDays:30,notes:'Let the upper soil begin to dry before watering.'},
+  {commonName:'Monstera deliciosa',scientificName:'Monstera deliciosa',traits:['upright','split','large'],light:'bright indirect light',waterDays:9,feedDays:30,notes:'Young leaves may be solid; mature leaves develop splits and holes.'},
+  {commonName:'Spider Plant',scientificName:'Chlorophytum comosum',traits:['clumping','strap','variegated'],light:'medium to bright indirect light',waterDays:7,feedDays:30,notes:'Often produces arching stems with small plantlets.'},
+  {commonName:'Berry Allusion Syngonium',scientificName:'Syngonium podophyllum',traits:['vine','arrow','pink'],light:'bright indirect light',waterDays:7,feedDays:30,notes:'Keep lightly moist, but never waterlogged.'},
+  {commonName:'Peperomia',scientificName:'Peperomia spp.',traits:['compact','round','waxy'],light:'medium to bright indirect light',waterDays:10,feedDays:45,notes:'Thick leaves store water, so allow some drying between waterings.'},
+  {commonName:'Haworthia',scientificName:'Haworthiopsis spp.',traits:['rosette','pointed','striped'],light:'bright filtered light',waterDays:18,feedDays:60,notes:'Use fast-draining soil and water only after it dries.'},
+  {commonName:'Echeveria',scientificName:'Echeveria spp.',traits:['rosette','round','powdery'],light:'several hours of bright light',waterDays:16,feedDays:60,notes:'Keep water out of the crown and use a gritty mix.'},
+  {commonName:'Coleus',scientificName:'Coleus scutellarioides',traits:['upright','serrated','colorful'],light:'bright indirect light',waterDays:5,feedDays:21,notes:'Pinch growing tips to encourage a bushier plant.'},
+  {commonName:'Polka Dot Plant',scientificName:'Hypoestes phyllostachya',traits:['compact','oval','spotted'],light:'bright indirect light',waterDays:5,feedDays:30,notes:'Prefers consistent moisture and humidity.'},
+  {commonName:'Bromeliad',scientificName:'Bromeliaceae',traits:['rosette','strap','colorful'],light:'bright filtered light',waterDays:9,feedDays:45,notes:'Care varies by genus; many appreciate humidity and an airy mix.'},
+  {commonName:'Umbrella Plant',scientificName:'Heptapleurum arboricola',traits:['upright','palmate','glossy'],light:'medium to bright indirect light',waterDays:9,feedDays:30,notes:'Allow the upper inch of soil to dry between waterings.'},
+  {commonName:'Nasturtium',scientificName:'Tropaeolum majus',traits:['vine','round','smooth'],light:'bright light or sun',waterDays:4,feedDays:30,notes:'Avoid overfeeding; rich soil can reduce flowering.'}
+];
+
+let state = {
+  plants: [],
+  logs: [],
+  terrarium: { layers: JSON.parse(JSON.stringify(DEFAULT_LAYERS)), notes: [] }
+};
+let activeTab = 'today';
+let openNotes = {};
+let identify = { imageData:null, mediaType:null, previewUrl:null, result:null, matches:[], error:null };
+let ideas = { loading:false, result:null, error:null };
+
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const todayStr = () => new Date().toISOString().slice(0,10);
+function daysBetween(a,b){ return Math.round((new Date(b) - new Date(a)) / 86400000); }
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------- due calc ---------- */
+function dueInfo(plant, kind){ // kind: 'water' | 'feed'
+  const interval = kind==='water' ? plant.wateringDays : plant.feedingDays;
+  if(!interval) return null;
+  const last = kind==='water' ? plant.lastWatered : plant.lastFed;
+  if(!last) return {status:'late', days: null, label:'never logged'};
+  const diff = daysBetween(last, todayStr());
+  const remaining = interval - diff;
+  if(remaining < 0) return {status:'late', days: -remaining, label:`${-remaining}d overdue`};
+  if(remaining === 0) return {status:'soon', days:0, label:'due today'};
+  if(remaining <= 1) return {status:'soon', days:remaining, label:'due tomorrow'};
+  return {status:'ok', days:remaining, label:`in ${remaining}d`};
+}
+
+/* ---------- rendering ---------- */
+function render(){
+  const app = document.getElementById('app');
+  const tentCount = state.plants.filter(p=>p.space==='tent').length;
+  const roomCount = state.plants.filter(p=>p.space==='room').length;
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="eyebrow">field log</div>
+      <h1>Greenhouse Ledger</h1>
+      <div class="sub">Watering, feeding, and growth — tracked across the tent, the room, and the build.</div>
+    </div>
+    <div class="tabs">
+      ${tabBtn('today','Today')}
+      ${tabBtn('tent','Grow Tent', tentCount)}
+      ${tabBtn('room','Room Plants', roomCount)}
+      ${tabBtn('terrarium','Terrarium Build')}
+      ${tabBtn('log','Growth Log')}
+      ${tabBtn('identify','Identify')}
+      ${tabBtn('ideas','Ideas')}
+    </div>
+    <div id="content"></div>
+    <div class="footer">
+      <span>${state.plants.length} plant${state.plants.length===1?'':'s'} tracked · saved automatically</span>
+      <span><a onclick="exportBackup()">export backup</a> · <a onclick="document.getElementById('backup-file').click()">import</a> · <a onclick="resetAll()">reset all</a></span>
+    </div>
+    <input id="backup-file" type="file" accept="application/json,.json" onchange="importBackup(event)" hidden />
+  `;
+  renderContent();
+}
+
+function tabBtn(key,label,count){
+  return `<button class="tab ${activeTab===key?'active':''}" onclick="setTab('${key}')">${label}${count?`<span class="count">${count}</span>`:''}</button>`;
+}
+function setTab(key){ activeTab = key; render(); }
+
+function renderContent(){
+  const c = document.getElementById('content');
+  if(activeTab==='today') c.innerHTML = renderToday();
+  else if(activeTab==='tent') c.innerHTML = renderSpace('tent','Grow Tent','Controlled environment — light cycle, feeding schedule.');
+  else if(activeTab==='room') c.innerHTML = renderSpace('room','Room Plants','Ambient light, casual care.');
+  else if(activeTab==='terrarium') c.innerHTML = renderTerrarium();
+  else if(activeTab==='log') c.innerHTML = renderLog();
+  else if(activeTab==='identify') c.innerHTML = renderIdentify();
+  else if(activeTab==='ideas') c.innerHTML = renderIdeas();
+}
+
+/* ---- Today ---- */
+function renderToday(){
+  const items = [];
+  state.plants.forEach(p=>{
+    ['water','feed'].forEach(kind=>{
+      const info = dueInfo(p, kind);
+      if(info && info.status!=='ok') items.push({plant:p, kind, info});
+    });
+  });
+  items.sort((a,b)=> (a.info.status==='late'?0:1) - (b.info.status==='late'?0:1));
+
+  if(items.length===0){
+    return `<div class="section-label">Needs attention</div><div class="empty">Nothing due today. Everything's on schedule.</div>` + renderUpcomingPeek();
+  }
+  return `
+    <div class="section-label">Needs attention (${items.length})</div>
+    ${items.map(it => `
+      <div class="today-item">
+        <div class="today-left">
+          <span class="dot ${it.info.status==='late'?'due-late':'due-soon'}" style="width:8px;height:8px;"></span>
+          <div>
+            <div><strong>${esc(it.plant.name)}</strong> — ${it.kind==='water'?'water':'feed'}</div>
+            <div class="today-space">${it.plant.space==='tent'?'Grow Tent':'Room'} · ${it.info.label}</div>
+          </div>
+        </div>
+        <button class="btn primary small" onclick="logAction('${it.plant.id}','${it.kind}')">${it.kind==='water'?'Mark watered':'Mark fed'}</button>
+      </div>
+    `).join('')}
+  `;
+}
+function renderUpcomingPeek(){
+  const upcoming = [];
+  state.plants.forEach(p=>{
+    ['water','feed'].forEach(kind=>{
+      const info = dueInfo(p, kind);
+      if(info && info.status==='ok') upcoming.push({plant:p, kind, info});
+    });
+  });
+  upcoming.sort((a,b)=>a.info.days-b.info.days);
+  if(upcoming.length===0) return '';
+  return `
+    <div class="section-label">Coming up</div>
+    ${upcoming.slice(0,6).map(it=>`
+      <div class="today-item">
+        <div class="today-left">
+          <div>
+            <strong>${esc(it.plant.name)}</strong> — ${it.kind==='water'?'water':'feed'}
+            <span class="today-space" style="margin-left:8px;">${it.info.label}</span>
+          </div>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+/* ---- Space tabs ---- */
+function renderSpace(spaceKey, title, subtitle){
+  const plants = state.plants.filter(p=>p.space===spaceKey);
+  return `
+    <div class="section-label">${title}</div>
+    <div class="sub" style="margin-bottom:16px;">${subtitle}</div>
+
+    <div class="add-form">
+      <div><label>Name</label><input id="np-name-${spaceKey}" placeholder="e.g. Monstera"/></div>
+      <div><label>Species</label><input id="np-species-${spaceKey}" placeholder="optional"/></div>
+      <div><label>Water every (days)</label><input id="np-water-${spaceKey}" type="number" min="1" placeholder="7"/></div>
+      <div><label>Feed every (days)</label><input id="np-feed-${spaceKey}" type="number" min="1" placeholder="14"/></div>
+      <button class="btn primary" onclick="addPlant('${spaceKey}')">Add plant</button>
+    </div>
+
+    ${plants.length===0 ? `<div class="empty">No plants added to ${title.toLowerCase()} yet.</div>` :
+      plants.map(p=>renderPlantCard(p, spaceKey)).join('')}
+  `;
+}
+
+function renderPlantCard(p, spaceKey){
+  const w = dueInfo(p,'water');
+  const f = dueInfo(p,'feed');
+  const notesOpen = !!openNotes[p.id];
+  return `
+    <div class="card ${spaceKey}">
+      <div class="card-top">
+        <div>
+          <div class="plant-name">${esc(p.name)}</div>
+          ${p.species?`<div class="plant-species">${esc(p.species)}</div>`:''}
+        </div>
+        <button class="btn ghost" onclick="deletePlant('${p.id}')" title="Remove">✕</button>
+      </div>
+      <div class="due-row">
+        ${w?`<div class="due-chip ${chipClass(w.status)}"><span class="dot"></span>Water · ${w.label}</div>`:''}
+        ${f?`<div class="due-chip ${chipClass(f.status)}"><span class="dot"></span>Feed · ${f.label}</div>`:''}
+      </div>
+      <div class="card-actions">
+        <button class="btn primary small" onclick="logAction('${p.id}','water')">Watered today</button>
+        <button class="btn small" onclick="logAction('${p.id}','feed')">Fed today</button>
+      </div>
+      <div class="notes-toggle" onclick="toggleNotes('${p.id}')">${notesOpen?'hide':'show'} growth notes (${p.notes.length})</div>
+      ${notesOpen ? renderNotes(p) : ''}
+    </div>
+  `;
+}
+function chipClass(status){ return status==='late'?'due-late':status==='soon'?'due-soon':'due-ok'; }
+
+function renderNotes(p){
+  return `
+    <div class="notes-list">
+      ${p.notes.length===0?'<div class="empty" style="padding:10px;">No notes yet.</div>':
+        p.notes.slice().reverse().map(n=>`<div class="note-item"><span class="note-date">${n.date}</span>${esc(n.text)}</div>`).join('')}
+      <div class="note-add">
+        <input id="note-input-${p.id}" placeholder="Add a growth note…" onkeydown="if(event.key==='Enter')addNote('${p.id}')"/>
+        <button class="btn small" onclick="addNote('${p.id}')">Add</button>
+      </div>
+    </div>
+  `;
+}
+function toggleNotes(id){ openNotes[id] = !openNotes[id]; renderContent(); }
+
+/* ---- Growth log (all plants, timeline) ---- */
+function renderLog(){
+  const entries = [];
+  state.plants.forEach(p=>p.notes.forEach(n=>entries.push({...n, plantName:p.name, space:p.space})));
+  state.logs.forEach(l=>{
+    const p = state.plants.find(pp=>pp.id===l.plantId);
+    entries.push({date:l.date, text:`${l.type==='water'?'Watered':'Fed'}`, plantName:p?p.name:'(removed)', space:p?p.space:'', isAction:true});
+  });
+  entries.sort((a,b)=> b.date.localeCompare(a.date));
+
+  if(entries.length===0) return `<div class="section-label">Growth Log</div><div class="empty">No entries yet — care actions and growth notes will show up here.</div>`;
+
+  return `
+    <div class="section-label">Growth Log</div>
+    ${entries.map(e=>`
+      <div class="today-item">
+        <div class="today-left">
+          <div>
+            <span class="note-date">${e.date}</span>
+            <strong>${esc(e.plantName)}</strong>${e.isAction?` — ${e.text}`:`: ${esc(e.text)}`}
+          </div>
+        </div>
+        <span class="today-space">${e.space==='tent'?'Tent':e.space==='room'?'Room':''}</span>
+      </div>
+    `).join('')}
+  `;
+}
+
+/* ---- Terrarium ---- */
+function renderTerrarium(){
+  const layers = state.terrarium.layers;
+  const notes = state.terrarium.notes;
+  return `
+    <div class="section-label">20-Gallon Long — Build Progress</div>
+    <div class="terra-layout">
+      <div class="terra-tasks">
+        ${layers.map(l=>`
+          <div class="task ${l.done?'done':''}" onclick="toggleLayer('${l.key}')">
+            <div class="task-check">${l.done?'✓':''}</div>
+            <div class="task-text">
+              <span class="task-label">${l.label}</span>
+              <span class="task-sub">${l.sub}${l.done && l.date? ' · '+l.date : ''}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="terra-svg-wrap">${terrariumSVG(layers)}</div>
+    </div>
+
+    <div class="build-notes">
+      <div class="section-label">Build Notes</div>
+      <div class="add-form" style="grid-template-columns:1fr auto;">
+        <div><input id="terra-note-input" placeholder="e.g. Swapped in cork bark instead of manzanita…" onkeydown="if(event.key==='Enter')addTerraNote()"/></div>
+        <button class="btn primary" onclick="addTerraNote()">Add</button>
+      </div>
+      ${notes.length===0?'<div class="empty">No build notes yet.</div>':
+        notes.slice().reverse().map(n=>`<div class="note-item"><span class="note-date">${n.date}</span>${esc(n.text)}</div>`).join('')}
+    </div>
+  `;
+}
+
+function terrariumSVG(layers){
+  const done = {}; layers.forEach(l=>done[l.key]=l.done);
+  const x0=30,y0=30,w=340,h=230;
+  const bottom = y0+h;
+  const drainH = 26, substrateH = 70;
+  const drainTop = bottom - drainH;
+  const substrateTop = drainTop - substrateH;
+
+  let s = `<svg width="320" height="220" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">`;
+  // glass tank
+  s += `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="4" fill="rgba(238,230,211,0.03)" stroke="rgba(238,230,211,0.35)" stroke-width="2"/>`;
+
+  // drainage
+  if(done.drainage){
+    s += `<rect x="${x0+2}" y="${drainTop}" width="${w-4}" height="${drainH}" fill="#cbb586" opacity="0.55"/>`;
+    for(let i=0;i<14;i++){
+      const cx = x0+15+Math.random()*(w-30);
+      const cy = drainTop+6+Math.random()*(drainH-12);
+      s += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3" fill="#eee6d3" opacity="0.5"/>`;
+    }
+  } else {
+    s += `<rect x="${x0+2}" y="${drainTop}" width="${w-4}" height="${drainH}" fill="none" stroke="rgba(238,230,211,0.15)" stroke-dasharray="4 4"/>`;
+  }
+
+  // barrier
+  if(done.barrier){
+    s += `<line x1="${x0+2}" y1="${drainTop}" x2="${x0+w-2}" y2="${drainTop}" stroke="#8ba46c" stroke-width="2" stroke-dasharray="3 3"/>`;
+  }
+
+  // substrate
+  if(done.substrate){
+    s += `<rect x="${x0+2}" y="${substrateTop}" width="${w-4}" height="${substrateH}" fill="#372b1c"/>`;
+    s += `<rect x="${x0+2}" y="${substrateTop}" width="${w-4}" height="6" fill="#4a3a24"/>`;
+  } else {
+    s += `<rect x="${x0+2}" y="${substrateTop}" width="${w-4}" height="${substrateH}" fill="none" stroke="rgba(238,230,211,0.15)" stroke-dasharray="4 4"/>`;
+  }
+
+  // hardscape
+  if(done.hardscape){
+    s += `<path d="M ${x0+40} ${substrateTop+6} L ${x0+75} ${substrateTop-38} L ${x0+105} ${substrateTop+6} Z" fill="#bd6d3f" opacity="0.85"/>`;
+    s += `<path d="M ${x0+220} ${substrateTop+6} Q ${x0+250} ${substrateTop-50} ${x0+280} ${substrateTop-10} Q ${x0+300} ${substrateTop-30} ${x0+310} ${substrateTop+6} Z" fill="#8a5a38" opacity="0.9"/>`;
+  }
+
+  // planting
+  if(done.planting){
+    s += `<ellipse cx="${x0+80}" cy="${substrateTop-30}" rx="22" ry="10" fill="#5c7248" opacity="0.85"/>`;
+    s += `<ellipse cx="${x0+150}" cy="${substrateTop-12}" rx="16" ry="8" fill="#8ba46c" opacity="0.8"/>`;
+    s += `<ellipse cx="${x0+270}" cy="${substrateTop-40}" rx="20" ry="9" fill="#5c7248" opacity="0.85"/>`;
+    for(let i=0;i<5;i++){
+      const cx = x0+50+i*55;
+      s += `<path d="M ${cx} ${substrateTop+4} Q ${cx+4} ${substrateTop-14} ${cx-6} ${substrateTop-24}" stroke="#8ba46c" stroke-width="2" fill="none" opacity="0.7"/>`;
+    }
+  }
+
+  // leaf litter
+  if(done.leaflitter){
+    for(let i=0;i<10;i++){
+      const cx = x0+20+Math.random()*(w-40);
+      const cy = substrateTop+4+Math.random()*8;
+      s += `<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="5" ry="2.5" fill="#8a5a38" opacity="0.7" transform="rotate(${(Math.random()*40-20).toFixed(0)} ${cx.toFixed(1)} ${cy.toFixed(1)})"/>`;
+    }
+  }
+
+  // systems
+  if(done.systems){
+    s += `<circle cx="${x0+w-24}" cy="${y0+22}" r="10" fill="none" stroke="#5c8f88" stroke-width="2"/>`;
+    s += `<text x="${x0+w-24}" y="${y0+26}" font-size="9" fill="#5c8f88" text-anchor="middle" font-family="monospace">RH</text>`;
+    for(let i=0;i<6;i++){
+      const cx = x0+30+Math.random()*(w-60);
+      const cy = y0+15+Math.random()*20;
+      s += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="1.4" fill="#5c8f88" opacity="0.6"/>`;
+    }
+  }
+
+  if(!Object.values(done).some(v=>v)){
+    s += `<text x="200" y="150" font-size="12" fill="rgba(238,230,211,0.4)" text-anchor="middle" font-family="sans-serif">check off tasks to build the tank</text>`;
+  }
+
+  s += `</svg>`;
+  return s;
+}
+
+/* ---- Identify ---- */
+function renderIdentify(){
+  return `
+    <div class="section-label">Offline Plant Identifier</div>
+    <div class="sub" style="margin-bottom:16px;">Add a reference photo, then describe the plant. The ledger compares your answers with its built-in plant guide without sending the photo anywhere.</div>
+    <input type="file" id="identify-file" accept="image/*" onchange="onIdentifyFileChange(event)" style="display:none;" />
+    <div class="drop-area" onclick="document.getElementById('identify-file').click()">
+      ${identify.previewUrl ? `<img src="${identify.previewUrl}" class="img-preview" alt="Plant reference"/>` : `<div class="drop-hint">Optional: choose a reference photo<br><small>The image stays on this device</small></div>`}
+    </div>
+    <div class="add-form" style="grid-template-columns:repeat(3,1fr) auto;">
+      <div><label>Growth</label><select id="trait-growth"><option value="">Not sure</option><option value="vine">Vining</option><option value="upright">Upright</option><option value="compact">Compact</option><option value="rosette">Rosette</option><option value="clumping">Clumping</option></select></div>
+      <div><label>Leaf shape</label><select id="trait-leaf"><option value="">Not sure</option><option value="heart">Heart-shaped</option><option value="arrow">Arrow-shaped</option><option value="round">Round</option><option value="oval">Oval</option><option value="strap">Long / strap-like</option><option value="pointed">Pointed</option><option value="split">Split / fenestrated</option><option value="palmate">Umbrella-like</option><option value="serrated">Serrated</option></select></div>
+      <div><label>Marking</label><select id="trait-marking"><option value="">Not sure</option><option value="variegated">Variegated</option><option value="pink">Pink-toned</option><option value="spotted">Spotted</option><option value="striped">Striped</option><option value="colorful">Colorful</option><option value="waxy">Waxy</option><option value="powdery">Powdery</option><option value="glossy">Glossy</option><option value="large">Large leaf</option><option value="smooth">Plain / smooth</option></select></div>
+      <button class="btn primary" onclick="runIdentify()">Find matches</button>
+    </div>
+    ${identify.error?`<div class="empty" style="border-color:var(--danger);color:var(--danger);margin-top:14px;">${esc(identify.error)}</div>`:''}
+    ${identify.matches.length?`<div class="section-label">Closest matches</div>${identify.matches.map((match,index)=>renderIdentifyResult(match,index)).join('')}`:''}
+  `;
+}
+
+function renderIdentifyResult(r,index){
+  return `
+    <div class="card" style="border-left:3px solid var(--clay-light);margin-top:18px;">
+      <div class="plant-name">${esc(r.commonName||'Unknown plant')}<span class="confidence-badge">${index===0?'closest match':'possible match'}</span></div>
+      ${r.scientificName?`<div class="plant-species">${esc(r.scientificName)}</div>`:''}
+      ${r.care && r.care.notes ? `<div class="sub" style="margin-top:10px;">${esc(r.care.notes)}</div>` : ''}
+      <div class="due-row">
+        ${r.care && r.care.light?`<div class="due-chip due-ok"><span class="dot"></span>${esc(r.care.light)}</div>`:''}
+        ${r.care && r.care.waterDays?`<div class="due-chip due-ok"><span class="dot"></span>water ~every ${r.care.waterDays}d</div>`:''}
+        ${r.care && r.care.feedDays?`<div class="due-chip due-ok"><span class="dot"></span>feed ~every ${r.care.feedDays}d</div>`:''}
+      </div>
+      <div class="section-label" style="margin-top:18px;">Add to collection</div>
+      <div class="add-form">
+        <div><label>Name</label><input id="id-add-name" value="${esc(r.commonName||'')}"/></div>
+        <div><label>Space</label>
+          <select id="id-add-space">
+            <option value="room">Room</option>
+            <option value="tent">Grow Tent</option>
+          </select>
+        </div>
+        <div><label>Water (days)</label><input id="id-add-water" type="number" value="${r.care&&r.care.waterDays?r.care.waterDays:''}"/></div>
+        <div><label>Feed (days)</label><input id="id-add-feed" type="number" value="${r.care&&r.care.feedDays?r.care.feedDays:''}"/></div>
+        <button class="btn primary" onclick="addIdentifiedPlant(${index})">Add</button>
+      </div>
+    </div>
+  `;
+}
+
+function onIdentifyFileChange(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  identify.error = null;
+  identify.result = null;
+  const reader = new FileReader();
+  reader.onload = () => {
+    identify.previewUrl = reader.result;
+    identify.mediaType = file.type || 'image/jpeg';
+    identify.imageData = reader.result.split(',')[1];
+    renderContent();
+  };
+  reader.readAsDataURL(file);
+}
+
+async function runIdentify(){
+  const traits = ['trait-growth','trait-leaf','trait-marking'].map(id=>document.getElementById(id).value).filter(Boolean);
+  identify.error = null;
+  if(!traits.length){ identify.error = 'Choose at least one visible trait so the field guide can narrow the results.'; renderContent(); return; }
+  identify.matches = PLANT_CATALOG.map(plant=>({plant,score:traits.filter(t=>plant.traits.includes(t)).length}))
+    .filter(item=>item.score>0).sort((a,b)=>b.score-a.score || a.plant.commonName.localeCompare(b.plant.commonName)).slice(0,3)
+    .map(item=>({...item.plant,care:{light:item.plant.light,waterDays:item.plant.waterDays,feedDays:item.plant.feedDays,notes:item.plant.notes}}));
+  if(!identify.matches.length) identify.error = 'No close match is in the offline guide yet. You can still add the plant manually from the Room or Grow Tent tab.';
+  renderContent();
+}
+
+async function addIdentifiedPlant(index){
+  identify.result = identify.matches[index];
+  const name = document.getElementById('id-add-name').value.trim();
+  if(!name){ showToast('Give the plant a name first'); return; }
+  const space = document.getElementById('id-add-space').value;
+  const water = parseInt(document.getElementById('id-add-water').value) || null;
+  const feed = parseInt(document.getElementById('id-add-feed').value) || null;
+  state.plants.push({
+    id: uid(), name, species: (identify.result && identify.result.scientificName) || '', space,
+    wateringDays: water, feedingDays: feed,
+    lastWatered:null, lastFed:null, added: todayStr(), notes:[]
+  });
+  await saveData('plants', state.plants);
+  showToast(`${name} added to your collection`);
+  identify = { imageData:null, mediaType:null, previewUrl:null, result:null, matches:[], error:null };
+  setTab(space);
+}
+
+/* ---- Ideas ---- */
+function renderIdeas(){
+  return `
+    <div class="section-label">Ideas & Recommendations</div>
+    <div class="sub" style="margin-bottom:16px;">Suggestions based on what's already in your tent, room, and terrarium build.</div>
+    <button class="btn primary" onclick="generateIdeas()" ${ideas.loading?'disabled':''}>${ideas.loading ? 'Thinking…' : (ideas.result ? 'Regenerate ideas' : 'Generate ideas')}</button>
+    ${ideas.error?`<div class="empty" style="border-color:var(--danger);color:var(--danger);margin-top:14px;">${esc(ideas.error)}</div>`:''}
+    ${ideas.result?renderIdeasResult():''}
+  `;
+}
+
+function renderIdeasResult(){
+  const r = ideas.result;
+  return `
+    <div class="section-label" style="margin-top:26px;">Plants to consider</div>
+    ${(r.plantIdeas||[]).length===0?'<div class="empty">No suggestions returned.</div>':
+      (r.plantIdeas||[]).map(p=>`
+      <div class="card room">
+        <div class="plant-name">${esc(p.name)}</div>
+        <div class="sub" style="margin-top:6px;">${esc(p.reason||'')}</div>
+        ${p.care?`<div class="due-row"><div class="due-chip due-ok"><span class="dot"></span>${esc(p.care)}</div></div>`:''}
+      </div>
+    `).join('')}
+    <div class="section-label" style="margin-top:26px;">Terrarium build ideas</div>
+    ${(r.buildIdeas||[]).length===0?'<div class="empty">No suggestions returned.</div>':
+      (r.buildIdeas||[]).map(b=>`
+      <div class="card tent">
+        <div class="plant-name" style="font-size:16px;">${esc(b.idea)}</div>
+        <div class="sub" style="margin-top:6px;">${esc(b.reason||'')}</div>
+      </div>
+    `).join('')}
+  `;
+}
+
+async function generateIdeas(){
+  ideas.loading = true; ideas.error = null; renderContent();
+  const owned = new Set(state.plants.flatMap(p=>[p.name.toLowerCase(),(p.species||'').toLowerCase()]));
+  const candidates = PLANT_CATALOG.filter(p=>!owned.has(p.commonName.toLowerCase())&&!owned.has(p.scientificName.toLowerCase()));
+  const selected = candidates.slice(0,4);
+  const nextLayer = state.terrarium.layers.find(l=>!l.done);
+  const completed = state.terrarium.layers.filter(l=>l.done).length;
+  const buildIdeas = [];
+  if(nextLayer) buildIdeas.push({idea:`Plan the ${nextLayer.label.toLowerCase()}`,reason:`This is the next unfinished stage in your build. ${nextLayer.sub} can be prepared before you disturb completed layers.`});
+  if(!state.terrarium.layers.find(l=>l.key==='hardscape').done) buildIdeas.push({idea:'Test the hardscape outside the tank',reason:'Arrange the wood, slate, and lighter stone on a surface first, then photograph the layout before installing it.'});
+  if(completed>=3) buildIdeas.push({idea:'Create a moisture gradient',reason:'Slope the substrate and group moisture-loving plants toward the deeper end while keeping the raised end more breathable.'});
+  if(state.terrarium.layers.find(l=>l.key==='planting').done) buildIdeas.push({idea:'Start a weekly establishment log',reason:'Record humidity, condensation, new growth, and mold so changes are caught early.'});
+  buildIdeas.push({idea:'Keep one service path accessible',reason:'Leave a small route to the hygrometer and hardscape so maintenance does not require uprooting plants.'});
+  ideas.result = {
+    plantIdeas:selected.map(p=>({name:p.commonName,reason:`Adds a ${p.traits[0]} growth form to the collection and is covered by the offline field guide.`,care:`${p.light}; water about every ${p.waterDays} days`})),
+    buildIdeas:buildIdeas.slice(0,4)
+  };
+  ideas.loading = false;
+  renderContent();
+}
+
+/* ---------- actions ---------- */
+async function addPlant(spaceKey){
+  const name = document.getElementById(`np-name-${spaceKey}`).value.trim();
+  if(!name){ showToast('Give the plant a name first'); return; }
+  const species = document.getElementById(`np-species-${spaceKey}`).value.trim();
+  const water = parseInt(document.getElementById(`np-water-${spaceKey}`).value) || null;
+  const feed = parseInt(document.getElementById(`np-feed-${spaceKey}`).value) || null;
+  state.plants.push({
+    id: uid(), name, species, space: spaceKey,
+    wateringDays: water, feedingDays: feed,
+    lastWatered: null, lastFed: null,
+    added: todayStr(), notes: []
+  });
+  await saveData('plants', state.plants);
+  showToast(`${name} added`);
+  render();
+}
+
+async function deletePlant(id){
+  const p = state.plants.find(p=>p.id===id);
+  if(!confirm(`Remove ${p?p.name:'this plant'}? This deletes its notes too.`)) return;
+  state.plants = state.plants.filter(p=>p.id!==id);
+  state.logs = state.logs.filter(l=>l.plantId!==id);
+  await saveData('plants', state.plants);
+  await saveData('logs', state.logs);
+  render();
+}
+
+async function logAction(plantId, kind){
+  const p = state.plants.find(p=>p.id===plantId);
+  if(!p) return;
+  const now = todayStr();
+  if(kind==='water') p.lastWatered = now; else p.lastFed = now;
+  state.logs.push({id:uid(), plantId, type:kind, date:now});
+  await saveData('plants', state.plants);
+  await saveData('logs', state.logs);
+  showToast(`${p.name} marked ${kind==='water'?'watered':'fed'}`);
+  render();
+}
+
+async function addNote(plantId){
+  const input = document.getElementById(`note-input-${plantId}`);
+  const text = input.value.trim();
+  if(!text) return;
+  const p = state.plants.find(p=>p.id===plantId);
+  p.notes.push({id:uid(), date:todayStr(), text});
+  await saveData('plants', state.plants);
+  input.value='';
+  renderContent();
+}
+
+async function toggleLayer(key){
+  const l = state.terrarium.layers.find(l=>l.key===key);
+  l.done = !l.done;
+  l.date = l.done ? todayStr() : null;
+  await saveData('terrarium', state.terrarium);
+  renderContent();
+}
+
+async function addTerraNote(){
+  const input = document.getElementById('terra-note-input');
+  const text = input.value.trim();
+  if(!text) return;
+  state.terrarium.notes.push({id:uid(), date:todayStr(), text});
+  await saveData('terrarium', state.terrarium);
+  input.value='';
+  renderContent();
+}
+
+async function resetAll(){
+  if(!confirm('This clears all plants, logs, and terrarium progress. Continue?')) return;
+  state = { plants:[], logs:[], terrarium:{layers:JSON.parse(JSON.stringify(DEFAULT_LAYERS)), notes:[]} };
+  await saveData('plants', state.plants);
+  await saveData('logs', state.logs);
+  await saveData('terrarium', state.terrarium);
+  render();
+}
+
+function exportBackup(){
+  const backup = {app:'Greenhouse Ledger',version:1,exportedAt:new Date().toISOString(),data:state};
+  const blob = new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=`greenhouse-ledger-${todayStr()}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  showToast('Backup exported');
+}
+
+async function importBackup(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  try{
+    const backup = JSON.parse(await file.text());
+    if(backup.app!=='Greenhouse Ledger'||!backup.data||!Array.isArray(backup.data.plants)) throw new Error('invalid backup');
+    if(!confirm('Import this backup and replace the data currently on this device?')) return;
+    state = backup.data;
+    await saveData('plants',state.plants);
+    await saveData('logs',state.logs||[]);
+    await saveData('terrarium',state.terrarium);
+    showToast('Backup restored'); render();
+  }catch(error){ showToast('That file is not a valid Greenhouse Ledger backup'); }
+  event.target.value='';
+}
+
+function esc(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* ---------- init ---------- */
+async function init(){
+  state.plants = await loadData('plants', []);
+  state.logs = await loadData('logs', []);
+  state.terrarium = await loadData('terrarium', { layers: JSON.parse(JSON.stringify(DEFAULT_LAYERS)), notes: [] });
+  render();
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./service-worker.js').catch(error=>console.warn('Offline setup failed',error));
+  }
+}
+init();
+</script>
+</body>
+</html>

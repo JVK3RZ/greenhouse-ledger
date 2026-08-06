@@ -1,0 +1,16 @@
+{
+  "name": "Greenhouse Ledger",
+  "short_name": "Ledger",
+  "description": "An offline field log for plants, care routines, growth, and terrarium builds.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#241d15",
+  "theme_color": "#241d15",
+  "icons": [
+    {"src":"./assets/icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"./assets/icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
