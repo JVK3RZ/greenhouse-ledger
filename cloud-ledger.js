@@ -4,7 +4,7 @@
 
   const client = () => LedgerAuth.client;
   const organizationId = () => LedgerAuth.getContext().organization.id;
-  const money = value => value == null ? '—' : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(value));
+  const money = value => value == null ? '—' : WorkspaceSettings.money(value);
   const label = value => String(value||'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
   const option = (value,text) => `<option value="${esc(value)}">${esc(text)}</option>`;
 
@@ -96,7 +96,7 @@
 
   function renderOperations(){
     const now=new Date(); const open=data.tasks.filter(t=>!['completed','cancelled'].includes(t.status));
-    const overdue=open.filter(t=>t.due_at&&new Date(t.due_at)<now); const low=data.batches.filter(b=>b.quantity<=5);
+    const overdue=open.filter(t=>t.due_at&&new Date(t.due_at)<now); const low=data.batches.filter(b=>b.quantity<=WorkspaceSettings.lowStockThreshold());
     const memberOptions='<option value="">Unassigned</option>'+data.members.map(m=>option(m.profile_id,m.profile?.display_name||m.profile_id.slice(0,8))).join('');
     return `${data.error?`<div class="sync-notice ${data.offline?'offline':''}">${esc(data.error)}</div>`:''}
       <div class="metric-grid"><div class="metric"><span>Open tasks</span><strong>${open.length}</strong></div><div class="metric"><span>Overdue</span><strong>${overdue.length}</strong></div><div class="metric"><span>Low stock</span><strong>${low.length}</strong></div><div class="metric"><span>Staff</span><strong>${data.members.length}</strong></div></div>

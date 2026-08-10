@@ -71,7 +71,7 @@
       const cleanUrl=new URL(location.href); cleanUrl.searchParams.delete('invite'); history.replaceState({},'',cleanUrl);
     }
     const {data:memberships,error} = await client.from('organization_members')
-      .select('role, organization:organizations(id,name)')
+      .select('role, organization:organizations(id,name,currency_code,timezone,low_stock_threshold)')
       .eq('profile_id',session.user.id).limit(1);
     if(error){ renderAuth('signin',error.message); return; }
     if(!memberships.length){ renderOrganization(); return; }
