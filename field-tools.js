@@ -56,8 +56,9 @@
 
   const original=CloudLedger.renderInventory;
   CloudLedger.renderInventory=()=>toolbar()+original();
-  const observer=new MutationObserver(()=>{if(!observer.busy){observer.busy=true;requestAnimationFrame(()=>{decorate();observer.busy=false;});}});
-  observer.observe(document.getElementById('app'),{childList:true,subtree:true});
   const requested=new URL(location.href).searchParams.get('batch');if(requested)state.focus=requested;
+  const observer=new MutationObserver(()=>{if(!observer.busy){observer.busy=true;requestAnimationFrame(()=>{decorate();observer.busy=false;});}});
+  function start(){const app=document.getElementById('app');if(app)observer.observe(app,{childList:true,subtree:true});}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
   window.FieldTools={filter,printLabel,copyLink};
 })();
