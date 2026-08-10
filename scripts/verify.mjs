@@ -1,0 +1,90 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, extname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const failures = [];
+const pass = message => console.log(`✓ ${message}`);
+const fail = message => failures.push(message);
+const read = path => readFileSync(join(root, path), 'utf8');
+
+function walk(directory, files = []) {
+  for (const entry of readdirSync(directory)) {
+    if (entry === '.git' || entry === 'node_modules') continue;
+    const path = join(directory, entry);
+    if (statSync(path).isDirectory()) walk(path, files);
+    else files.push(path);
+  }
+  return files;
+}
+
+const allFiles = walk(root);
+const javascript = allFiles.filter(path => extname(path) === '.js');
+for (const path of javascript) {
+  try {
+    execFileSync(process.execPath, ['--check', path], { stdio: 'pipe' });
+  } catch (error) {
+    fail(`JavaScript syntax failed for ${relative(root, path)}: ${error.stderr?.toString().trim() || error.message}`);
+  }
+}
+if (!failures.length) pass(`${javascript.length} JavaScript files pass syntax validation`);
+
+const index = read('index.html');
+const worker = read('service-worker.js');
+const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
+const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => match[1]).filter(path => path !== '');
+
+for (const path of [...new Set([...localScripts, ...shellAssets])]) {
+  if (!existsSync(join(root, path))) fail(`Referenced PWA asset is missing: ${path}`);
+}
+for (const script of localScripts) {
+  if (!shellAssets.includes(script)) fail(`Local script is not cached by the service worker: ${script}`);
+}
+if (!failures.length) pass('PWA shell references exist and local scripts are cached');
+
+const manifest = JSON.parse(read('manifest.webmanifest'));
+if (!manifest.name || !manifest.short_name || !Array.isArray(manifest.icons) || manifest.icons.length < 2) {
+  fail('Web app manifest must include names and at least two icons');
+} else {
+  for (const icon of manifest.icons) {
+    const path = String(icon.src || '').replace(/^\.\//, '');
+    if (!path || !existsSync(join(root, path))) fail(`Manifest icon is missing: ${icon.src || '(empty)'}`);
+  }
+  if (!failures.length) pass('Web app manifest and icons are complete');
+}
+
+const migrationsDirectory = join(root, 'supabase', 'migrations');
+if (!existsSync(migrationsDirectory)) {
+  fail('Supabase migrations directory is missing');
+} else {
+  const migrations = readdirSync(migrationsDirectory).filter(name => name.endsWith('.sql')).sort();
+  const versions = new Set();
+  for (const name of migrations) {
+    const match = name.match(/^(\d{14})_[a-z0-9_]+\.sql$/);
+    if (!match) fail(`Migration filename is not versioned correctly: ${name}`);
+    else if (versions.has(match[1])) fail(`Duplicate migration version: ${match[1]}`);
+    else versions.add(match[1]);
+  }
+  if (!failures.length) pass(`${migrations.length} Supabase migrations are ordered and uniquely versioned`);
+}
+
+const publicSource = allFiles.filter(path => {
+  const rel = relative(root, path);
+  return !rel.startsWith(`scripts${join('', 'x').slice(0, 0)}`) && ['.js', '.html', '.json', '.webmanifest'].includes(extname(path));
+});
+for (const path of publicSource) {
+  const source = readFileSync(path, 'utf8');
+  if (/sb_secret_[A-Za-z0-9_-]+/.test(source) || /SUPABASE_SERVICE_ROLE_KEY\s*[:=]/.test(source)) {
+    fail(`Potential Supabase administrative secret found in ${relative(root, path)}`);
+  }
+}
+if (!failures.length) pass('Public application files contain no Supabase administrative-key patterns');
+
+if (failures.length) {
+  console.error('\nQuality gate failed:');
+  for (const message of failures) console.error(`- ${message}`);
+  process.exit(1);
+}
+
+console.log('\nGreenhouse Ledger quality gate passed.');
