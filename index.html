@@ -55,7 +55,7 @@ body{
 .auth-switch{margin-top:12px!important;}
 .account-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;color:var(--ink-dim);font-size:12px;}
 .account-bar strong{color:var(--moss-light);}
-.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0 24px}.metric{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}.metric span,.stock-count small,.mini-row small{display:block;color:var(--ink-dim);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.metric strong{font-family:Fraunces,serif;font-size:26px}.ops-form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:end}.ops-form label,.stack-form{display:grid;gap:5px;font-size:10px;color:var(--ink-dim);text-transform:uppercase}.ops-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}.stack-form{margin-bottom:16px}.form-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mini-row{display:flex;justify-content:space-between;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line);font-size:13px}.mini-row small{margin-top:3px}.stock-count{font-family:Fraunces,serif;font-size:28px;text-align:right}.adjust-form{display:grid;grid-template-columns:150px 90px 1fr auto;gap:8px;margin-top:14px}.sync-notice{padding:10px 12px;border:1px solid var(--clay);border-radius:8px;color:var(--clay-light);margin-bottom:12px}.sync-notice.offline{border-color:var(--sand);color:var(--sand)}
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0 24px}.metric{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}.metric span,.stock-count small,.mini-row small{display:block;color:var(--ink-dim);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.metric strong{font-family:Fraunces,serif;font-size:26px}.ops-form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:end}.ops-form label,.stack-form{display:grid;gap:5px;font-size:10px;color:var(--ink-dim);text-transform:uppercase}.ops-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}.stack-form{margin-bottom:16px}.form-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mini-row{display:flex;justify-content:space-between;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line);font-size:13px}.mini-row small{margin-top:3px}.stock-count{font-family:Fraunces,serif;font-size:28px;text-align:right}.adjust-form{display:grid;grid-template-columns:150px 90px 1fr auto;gap:8px;margin-top:14px}.sync-notice{padding:10px 12px;border:1px solid var(--clay);border-radius:8px;color:var(--clay-light);margin-bottom:12px}.sync-notice.offline{border-color:var(--sand);color:var(--sand)}.photo-label{display:inline-flex;align-items:center;cursor:pointer}.photo-label input{display:none}
 @media(max-width:720px){.metric-grid{grid-template-columns:1fr 1fr}.ops-form,.ops-columns{grid-template-columns:1fr}.adjust-form{grid-template-columns:1fr 1fr}.adjust-form input[name="note"]{grid-column:1/-1}}
 
 /* Header */
@@ -393,6 +393,8 @@ function render(){
     <div class="tabs">
       ${tabBtn('today','Today')}
       ${tabBtn('inventory','Inventory', CloudLedger.getData().batches.length)}
+      ${tabBtn('operations','Operations', CloudLedger.getData().tasks.filter(t=>!['completed','cancelled'].includes(t.status)).length)}
+      ${tabBtn('team','Team')}
       ${tabBtn('setup','Locations & Catalog')}
       ${tabBtn('tent','Grow Tent', tentCount)}
       ${tabBtn('room','Room Plants', roomCount)}
@@ -420,6 +422,8 @@ function renderContent(){
   const c = document.getElementById('content');
   if(activeTab==='today') c.innerHTML = renderToday();
   else if(activeTab==='inventory') c.innerHTML = CloudLedger.renderInventory();
+  else if(activeTab==='operations') c.innerHTML = CloudLedger.renderOperations();
+  else if(activeTab==='team') c.innerHTML = CloudLedger.renderTeam();
   else if(activeTab==='setup') c.innerHTML = CloudLedger.renderSetup();
   else if(activeTab==='tent') c.innerHTML = renderSpace('tent','Grow Tent','Controlled environment — light cycle, feeding schedule.');
   else if(activeTab==='room') c.innerHTML = renderSpace('room','Room Plants','Ambient light, casual care.');

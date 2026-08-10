@@ -64,6 +64,12 @@
 
   async function routeSession(session){
     if(!session){ context=null; renderAuth(); return; }
+    const invitationCode = new URL(location.href).searchParams.get('invite');
+    if(invitationCode){
+      const accepted = await client.rpc('accept_organization_invitation',{invitation_code:invitationCode});
+      if(accepted.error){ renderAuth('signin',accepted.error.message); return; }
+      const cleanUrl=new URL(location.href); cleanUrl.searchParams.delete('invite'); history.replaceState({},'',cleanUrl);
+    }
     const {data:memberships,error} = await client.from('organization_members')
       .select('role, organization:organizations(id,name)')
       .eq('profile_id',session.user.id).limit(1);
