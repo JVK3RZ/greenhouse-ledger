@@ -14,6 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.0/dist/umd/supabase.min.js"></script>
 <script src="./supabase-config.js"></script>
 <script src="./auth.js"></script>
+<script src="./cloud-ledger.js"></script>
 <title>Greenhouse Ledger</title>
 <style>
 :root{
@@ -54,6 +55,8 @@ body{
 .auth-switch{margin-top:12px!important;}
 .account-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;color:var(--ink-dim);font-size:12px;}
 .account-bar strong{color:var(--moss-light);}
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0 24px}.metric{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}.metric span,.stock-count small,.mini-row small{display:block;color:var(--ink-dim);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.metric strong{font-family:Fraunces,serif;font-size:26px}.ops-form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:end}.ops-form label,.stack-form{display:grid;gap:5px;font-size:10px;color:var(--ink-dim);text-transform:uppercase}.ops-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}.stack-form{margin-bottom:16px}.form-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mini-row{display:flex;justify-content:space-between;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line);font-size:13px}.mini-row small{margin-top:3px}.stock-count{font-family:Fraunces,serif;font-size:28px;text-align:right}.adjust-form{display:grid;grid-template-columns:150px 90px 1fr auto;gap:8px;margin-top:14px}.sync-notice{padding:10px 12px;border:1px solid var(--clay);border-radius:8px;color:var(--clay-light);margin-bottom:12px}.sync-notice.offline{border-color:var(--sand);color:var(--sand)}
+@media(max-width:720px){.metric-grid{grid-template-columns:1fr 1fr}.ops-form,.ops-columns{grid-template-columns:1fr}.adjust-form{grid-template-columns:1fr 1fr}.adjust-form input[name="note"]{grid-column:1/-1}}
 
 /* Header */
 .header{margin-bottom:22px;}
@@ -389,6 +392,8 @@ function render(){
     </div>
     <div class="tabs">
       ${tabBtn('today','Today')}
+      ${tabBtn('inventory','Inventory', CloudLedger.getData().batches.length)}
+      ${tabBtn('setup','Locations & Catalog')}
       ${tabBtn('tent','Grow Tent', tentCount)}
       ${tabBtn('room','Room Plants', roomCount)}
       ${tabBtn('terrarium','Terrarium Build')}
@@ -414,6 +419,8 @@ function setTab(key){ activeTab = key; render(); }
 function renderContent(){
   const c = document.getElementById('content');
   if(activeTab==='today') c.innerHTML = renderToday();
+  else if(activeTab==='inventory') c.innerHTML = CloudLedger.renderInventory();
+  else if(activeTab==='setup') c.innerHTML = CloudLedger.renderSetup();
   else if(activeTab==='tent') c.innerHTML = renderSpace('tent','Grow Tent','Controlled environment — light cycle, feeding schedule.');
   else if(activeTab==='room') c.innerHTML = renderSpace('room','Room Plants','Ambient light, casual care.');
   else if(activeTab==='terrarium') c.innerHTML = renderTerrarium();
@@ -947,7 +954,7 @@ async function init(){
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('./service-worker.js').catch(error=>console.warn('Offline setup failed',error));
   }
-  await LedgerAuth.initialize({onReady:()=>render()});
+  await LedgerAuth.initialize({onReady:async()=>{ await CloudLedger.load(); render(); }});
 }
 init();
 </script>

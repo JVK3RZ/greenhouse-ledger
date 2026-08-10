@@ -14,7 +14,7 @@ Then open the localhost URL shown by the server.
 
 ## Data and privacy
 
-Phase 1 adds Supabase authentication and a private organization workspace. Existing plant records, care logs, terrarium progress, and notes remain in IndexedDB on the current device until the inventory synchronization phase. Use **export backup** to move those offline records to another browser or device.
+Supabase authentication provides a private organization workspace. Phase 2 adds shared growing locations, a reusable plant catalog, inventory batches, and an auditable stock history. The latest cloud inventory snapshot is cached in IndexedDB for offline viewing; writes resume when the device is online. Existing personal plant records, care logs, terrarium progress, and notes remain device-local. Use **export backup** to move those records to another browser or device.
 
 ## Supabase
 

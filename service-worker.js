@@ -1,10 +1,11 @@
-const CACHE_NAME = 'greenhouse-ledger-v2';
+const CACHE_NAME = 'greenhouse-ledger-v3';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './supabase-config.js',
   './auth.js',
+  './cloud-ledger.js',
   './assets/icons/icon.svg',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png'
