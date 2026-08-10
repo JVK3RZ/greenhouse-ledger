@@ -1,13 +1,11 @@
 (function(){
-  const LOW_STOCK_LEVEL = 5;
+  const lowStockLevel = () => WorkspaceSettings.lowStockThreshold();
   const movementLabels = {
     received:'Received', sale:'Sold', loss:'Lost', propagation:'Propagated',
     adjustment:'Adjusted', transfer_in:'Transferred in', transfer_out:'Transferred out'
   };
 
-  const money = value => new Intl.NumberFormat('en-US',{
-    style:'currency', currency:'USD', maximumFractionDigits:2
-  }).format(Number(value)||0);
+  const money = value => WorkspaceSettings.money(value);
   const dateValue = daysAgo => {
     const date=new Date(); date.setDate(date.getDate()-daysAgo);
     return date.toISOString().slice(0,10);
@@ -26,7 +24,7 @@
     const units=data.batches.reduce((sum,batch)=>sum+Number(batch.quantity||0),0);
     const costValue=data.batches.reduce((sum,batch)=>sum+Number(batch.quantity||0)*Number(batch.unit_cost||0),0);
     const retailValue=data.batches.reduce((sum,batch)=>sum+Number(batch.quantity||0)*Number(batch.unit_price||batch.plant_catalog?.default_price||0),0);
-    const lowStock=data.batches.filter(batch=>Number(batch.quantity)<=LOW_STOCK_LEVEL).sort((a,b)=>a.quantity-b.quantity);
+    const lowStock=data.batches.filter(batch=>Number(batch.quantity)<=lowStockLevel()).sort((a,b)=>a.quantity-b.quantity);
     const movements=transactions.reduce((summary,item)=>{
       summary[item.transaction_type]=(summary[item.transaction_type]||0)+Number(item.quantity||0);
       return summary;
@@ -62,7 +60,7 @@
           <div class="report-note">The on-screen summary uses the latest synchronized activity. The CSV export securely retrieves the complete selected date range from Supabase.</div>
         </section>
         <section><div class="section-label">Low-stock review</div>
-          ${report.lowStock.length?`<div class="report-scroll"><table class="report-table"><thead><tr><th>Plant</th><th>Location</th><th>Stage</th><th>Units</th></tr></thead><tbody>${report.lowStock.map(batch=>`<tr><td>${esc(batch.plant_catalog?.common_name||'Unknown')}</td><td>${esc(batch.location?.name||'Unassigned')}</td><td>${esc(String(batch.stage||'').replaceAll('_',' '))}</td><td>${batch.quantity}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No batches are at or below ${LOW_STOCK_LEVEL} units.</div>'}
+          ${report.lowStock.length?`<div class="report-scroll"><table class="report-table"><thead><tr><th>Plant</th><th>Location</th><th>Stage</th><th>Units</th></tr></thead><tbody>${report.lowStock.map(batch=>`<tr><td>${esc(batch.plant_catalog?.common_name||'Unknown')}</td><td>${esc(batch.location?.name||'Unassigned')}</td><td>${esc(String(batch.stage||'').replaceAll('_',' '))}</td><td>${batch.quantity}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No batches are at or below ${lowStockLevel()} units.</div>'}
         </section>
       </div>`;
   }
