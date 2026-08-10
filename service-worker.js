@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v6';
+const CACHE_NAME = 'greenhouse-ledger-v7';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const APP_SHELL = [
   './cloud-ledger.js',
   './reports.js',
   './field-tools.js',
+  './catalog-onboarding.js',
   './assets/icons/icon.svg',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png'
