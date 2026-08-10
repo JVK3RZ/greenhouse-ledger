@@ -14,7 +14,7 @@ Then open the localhost URL shown by the server.
 
 ## Data and privacy
 
-Supabase authentication provides a private organization workspace. Shared growing locations, a reusable plant catalog, inventory batches, staff tasks, protected photos, and an auditable stock history are synchronized through Supabase. Phase 4 adds inventory valuation, date-range movement reporting, low-stock review, print-ready summaries, and CSV exports. The latest cloud inventory snapshot is cached in IndexedDB for offline viewing; writes resume when the device is online. Existing personal plant records, care logs, terrarium progress, and notes remain device-local. Use **export backup** to move those records to another browser or device.
+Supabase authentication provides a private organization workspace. Shared growing locations, a reusable plant catalog, inventory batches, staff tasks, protected photos, and an auditable stock history are synchronized through Supabase. Phase 4 adds inventory valuation, date-range movement reporting, low-stock review, print-ready summaries, and CSV exports. Phase 5 adds floor-ready inventory search, scanner-friendly SKU and batch lookup, direct batch links, and printable batch labels. The latest cloud inventory snapshot is cached in IndexedDB for offline viewing; writes resume when the device is online. Existing personal plant records, care logs, terrarium progress, and notes remain device-local. Use **export backup** to move those records to another browser or device.
 
 ## Supabase
 
