@@ -11,6 +11,9 @@
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="icon" href="./assets/icons/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="./assets/icons/icon-192.png" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.0/dist/umd/supabase.min.js"></script>
+<script src="./supabase-config.js"></script>
+<script src="./auth.js"></script>
 <title>Greenhouse Ledger</title>
 <style>
 :root{
@@ -42,6 +45,15 @@ body{
   min-height:100vh;
 }
 .wrap{max-width:920px;margin:0 auto;padding:28px 20px 60px;}
+.auth-shell{min-height:calc(100vh - 88px);display:grid;place-items:center;padding:24px 0;}
+.auth-card{width:min(100%,460px);background:linear-gradient(180deg,var(--card),var(--card-2));border:1px solid var(--line);border-radius:14px;padding:28px;}
+.auth-form{display:grid;gap:14px;margin-top:24px;}
+.auth-form label{display:grid;gap:6px;font-size:11px;color:var(--ink-dim);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.04em;}
+.auth-form input{width:100%;font-family:'Inter',sans-serif;text-transform:none;letter-spacing:normal;}
+.auth-message{color:var(--clay-light);font-size:13px;line-height:1.45;margin:14px 0 0;}
+.auth-switch{margin-top:12px!important;}
+.account-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;color:var(--ink-dim);font-size:12px;}
+.account-bar strong{color:var(--moss-light);}
 
 /* Header */
 .header{margin-bottom:22px;}
@@ -363,6 +375,7 @@ function dueInfo(plant, kind){ // kind: 'water' | 'feed'
 
 /* ---------- rendering ---------- */
 function render(){
+  const authContext = LedgerAuth.getContext();
   const app = document.getElementById('app');
   const tentCount = state.plants.filter(p=>p.space==='tent').length;
   const roomCount = state.plants.filter(p=>p.space==='room').length;
@@ -372,6 +385,7 @@ function render(){
       <div class="eyebrow">field log</div>
       <h1>Greenhouse Ledger</h1>
       <div class="sub">Watering, feeding, and growth — tracked across the tent, the room, and the build.</div>
+      <div class="account-bar"><span><strong>${esc(authContext.organization.name)}</strong> · ${esc(authContext.role)}</span><button class="btn ghost small" onclick="LedgerAuth.signOut()">Sign out</button></div>
     </div>
     <div class="tabs">
       ${tabBtn('today','Today')}
@@ -930,10 +944,10 @@ async function init(){
   state.plants = await loadData('plants', []);
   state.logs = await loadData('logs', []);
   state.terrarium = await loadData('terrarium', { layers: JSON.parse(JSON.stringify(DEFAULT_LAYERS)), notes: [] });
-  render();
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('./service-worker.js').catch(error=>console.warn('Offline setup failed',error));
   }
+  await LedgerAuth.initialize({onReady:()=>render()});
 }
 init();
 </script>
