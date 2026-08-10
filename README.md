@@ -12,9 +12,19 @@ npx serve .
 
 Then open the localhost URL shown by the server.
 
+## Quality checks
+
+Run the same dependency-free quality gate used by GitHub Actions:
+
+```sh
+npm test
+```
+
+The gate validates JavaScript syntax, PWA shell and cache consistency, manifest assets, migration versioning, and public-source administrative-key patterns.
+
 ## Data and privacy
 
-Supabase authentication provides a private organization workspace. Shared growing locations, a reusable plant catalog, inventory batches, staff tasks, protected photos, and an auditable stock history are synchronized through Supabase. Phase 4 adds inventory valuation, date-range movement reporting, low-stock review, print-ready summaries, and CSV exports. Phase 5 adds floor-ready inventory search, scanner-friendly SKU and batch lookup, direct batch links, and printable batch labels. Phase 6 adds a guided workspace-readiness checklist and validated bulk catalog onboarding from CSV. Phase 7 adds organization-controlled business identity, currency, timezone, and low-stock alert settings. The latest cloud inventory snapshot is cached in IndexedDB for offline viewing; writes resume when the device is online. Existing personal plant records, care logs, terrarium progress, and notes remain device-local. Use **export backup** to move those records to another browser or device.
+Supabase authentication provides a private organization workspace. Shared growing locations, a reusable plant catalog, inventory batches, staff tasks, protected photos, and an auditable stock history are synchronized through Supabase. Phase 4 adds inventory valuation, date-range movement reporting, low-stock review, print-ready summaries, and CSV exports. Phase 5 adds floor-ready inventory search, scanner-friendly SKU and batch lookup, direct batch links, and printable batch labels. Phase 6 adds a guided workspace-readiness checklist and validated bulk catalog onboarding from CSV. Phase 7 adds organization-controlled business identity, currency, timezone, and low-stock alert settings. Phase 8 adds an automated repository quality gate for every pull request and update to `main`. The latest cloud inventory snapshot is cached in IndexedDB for offline viewing; writes resume when the device is online. Existing personal plant records, care logs, terrarium progress, and notes remain device-local. Use **export backup** to move those records to another browser or device.
 
 ## Supabase
 
