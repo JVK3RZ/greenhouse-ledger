@@ -1,6 +1,6 @@
 (function(){
   const STAGES = ['propagation','seedling','vegetative','finishing','retail_ready','dormant'];
-  let data = {locations:[],catalog:[],batches:[],transactions:[],loading:false,offline:false,error:null};
+  let data = {locations:[],catalog:[],batches:[],transactions:[],tasks:[],members:[],invitations:[],activity:[],loading:false,offline:false,error:null};
 
   const client = () => LedgerAuth.client;
   const organizationId = () => LedgerAuth.getContext().organization.id;
@@ -11,20 +11,24 @@
   async function load(){
     data.loading=true; data.error=null;
     const org=organizationId();
-    const [locations,catalog,batches,transactions]=await Promise.all([
+    const [locations,catalog,batches,transactions,tasks,members,invitations,activity]=await Promise.all([
       client().from('locations').select('*').eq('organization_id',org).order('name'),
       client().from('plant_catalog').select('*').eq('organization_id',org).order('common_name'),
       client().from('inventory_batches').select('*, plant_catalog(*), location:locations(*)').eq('organization_id',org).order('created_at',{ascending:false}),
-      client().from('inventory_transactions').select('*').eq('organization_id',org).order('created_at',{ascending:false}).limit(100)
+      client().from('inventory_transactions').select('*').eq('organization_id',org).order('created_at',{ascending:false}).limit(100),
+      client().from('care_tasks').select('*, assignee:profiles!care_tasks_assigned_to_fkey(display_name), location:locations(name), batch:inventory_batches(batch_code,plant_catalog(common_name))').eq('organization_id',org).order('due_at'),
+      client().from('organization_members').select('profile_id,role,profile:profiles(display_name)').eq('organization_id',org),
+      client().from('organization_invitations').select('*').eq('organization_id',org).is('accepted_at',null).order('created_at',{ascending:false}),
+      client().from('activity_logs').select('*, actor:profiles(display_name)').eq('organization_id',org).order('created_at',{ascending:false}).limit(50)
     ]);
-    const failed=[locations,catalog,batches,transactions].find(result=>result.error);
+    const failed=[locations,catalog,batches,transactions,tasks,members,invitations,activity].find(result=>result.error);
     if(failed){
       const cached=await loadData(`cloud-${org}`,null);
       if(cached){ data={...cached,loading:false,offline:true,error:'Showing the last saved cloud snapshot.'}; }
       else { data.loading=false; data.offline=true; data.error=failed.error.message; }
       return;
     }
-    data={locations:locations.data||[],catalog:catalog.data||[],batches:batches.data||[],transactions:transactions.data||[],loading:false,offline:false,error:null};
+    data={locations:locations.data||[],catalog:catalog.data||[],batches:batches.data||[],transactions:transactions.data||[],tasks:tasks.data||[],members:members.data||[],invitations:invitations.data||[],activity:activity.data||[],loading:false,offline:false,error:null};
     await saveData(`cloud-${org}`,data);
   }
 
@@ -64,6 +68,7 @@
         <div class="card inventory-card">
           <div class="card-top"><div><div class="plant-name">${esc(batch.plant_catalog.common_name)}</div><div class="plant-species">${esc(batch.location?.name||'Unassigned')} · ${esc(label(batch.stage))}${batch.batch_code?` · ${esc(batch.batch_code)}`:''}</div></div><div class="stock-count">${batch.quantity}<small>units</small></div></div>
           <div class="due-row"><div class="due-chip due-ok">Cost ${money(batch.unit_cost)}</div><div class="due-chip due-ok">Price ${money(batch.unit_price)}</div></div>
+          <div class="card-actions"><label class="btn small photo-label">${batch.photo_path?'Replace photo':'Add photo'}<input type="file" accept="image/jpeg,image/png,image/webp" onchange="CloudLedger.uploadBatchPhoto(event,'${batch.id}')"></label></div>
           <form class="adjust-form" onsubmit="CloudLedger.adjustStock(event,'${batch.id}')">
             <select name="transaction_type"><option value="received">Receive</option><option value="sale">Sale</option><option value="loss">Loss</option><option value="propagation">Propagation</option><option value="adjustment_in">Correction +</option><option value="adjustment_out">Correction −</option></select>
             <input name="quantity" type="number" min="1" placeholder="Qty" required>
@@ -89,6 +94,26 @@
       </div>`;
   }
 
+  function renderOperations(){
+    const now=new Date(); const open=data.tasks.filter(t=>!['completed','cancelled'].includes(t.status));
+    const overdue=open.filter(t=>t.due_at&&new Date(t.due_at)<now); const low=data.batches.filter(b=>b.quantity<=5);
+    const memberOptions='<option value="">Unassigned</option>'+data.members.map(m=>option(m.profile_id,m.profile?.display_name||m.profile_id.slice(0,8))).join('');
+    return `${data.error?`<div class="sync-notice ${data.offline?'offline':''}">${esc(data.error)}</div>`:''}
+      <div class="metric-grid"><div class="metric"><span>Open tasks</span><strong>${open.length}</strong></div><div class="metric"><span>Overdue</span><strong>${overdue.length}</strong></div><div class="metric"><span>Low stock</span><strong>${low.length}</strong></div><div class="metric"><span>Staff</span><strong>${data.members.length}</strong></div></div>
+      ${low.length?`<div class="sync-notice offline"><strong>Low stock:</strong> ${low.map(b=>esc(`${b.plant_catalog.common_name} (${b.quantity})`)).join(' · ')}</div>`:''}
+      <div class="section-label">Create care task</div>
+      <form class="ops-form" onsubmit="CloudLedger.addTask(event)"><label>Title<input name="title" required placeholder="Water House 1"></label><label>Type<select name="task_type"><option>watering</option><option>feeding</option><option>inspection</option><option>repotting</option><option>pest_control</option><option>other</option></select></label><label>Due<input name="due_at" type="datetime-local" required></label><label>Assign<select name="assigned_to">${memberOptions}</select></label><label>Location<select name="location_id"><option value="">Any location</option>${data.locations.map(l=>option(l.id,l.name)).join('')}</select></label><label>Repeat days<input name="recurrence_days" type="number" min="1" placeholder="optional"></label><label>Notes<input name="notes"></label><button class="btn primary">Create task</button></form>
+      <div class="section-label">Care queue</div>${open.length?open.map(t=>`<div class="today-item"><div><strong>${esc(t.title)}</strong><div class="today-space">${esc(t.location?.name||'All locations')} · ${t.due_at?new Date(t.due_at).toLocaleString():'No due date'} · ${esc(t.assignee?.display_name||'Unassigned')}${t.recurrence_days?` · repeats ${t.recurrence_days}d`:''}</div></div><button class="btn primary small" onclick="CloudLedger.completeTask('${t.id}')">Complete</button></div>`).join(''):'<div class="empty">No open care tasks.</div>'}
+      <div class="section-label">Recent activity</div>${data.activity.map(a=>`<div class="mini-row"><span><strong>${esc(label(a.action))}</strong><small>${esc(a.actor?.display_name||'System')} · ${esc(label(a.entity_type))}</small></span><small>${new Date(a.created_at).toLocaleString()}</small></div>`).join('')||'<div class="empty">No activity yet.</div>'}`;
+  }
+
+  function renderTeam(){
+    const canManage=['owner','manager'].includes(LedgerAuth.getContext().role);
+    return `<div class="section-label">Staff</div>${data.members.map(m=>`<div class="mini-row"><span><strong>${esc(m.profile?.display_name||'Unnamed staff member')}</strong><small>${esc(label(m.role))}</small></span></div>`).join('')}
+      ${canManage?`<div class="section-label">Invite staff</div><form class="ops-form" onsubmit="CloudLedger.inviteStaff(event)"><label>Email<input name="email" type="email" required></label><label>Role<select name="role"><option>worker</option><option>manager</option></select></label><button class="btn primary">Create invitation</button></form>
+      ${data.invitations.map(i=>`<div class="card"><strong>${esc(i.email)}</strong><div class="plant-species">${esc(label(i.role))} · expires ${new Date(i.expires_at).toLocaleDateString()}</div><div class="card-actions"><button class="btn small" onclick="CloudLedger.copyInvite('${i.code}')">Copy invitation link</button></div></div>`).join('')}`:''}`;
+  }
+
   async function addLocation(event){
     event.preventDefault(); const form=new FormData(event.currentTarget);
     const payload={organization_id:organizationId(),name:String(form.get('name')).trim(),location_type:form.get('location_type'),notes:String(form.get('notes')||'').trim()||null};
@@ -110,5 +135,11 @@
     const {error}=await client().rpc('adjust_inventory_stock',{target_batch_id:batchId,stock_delta:delta,kind,stock_note:String(form.get('note')||'').trim()||null}); if(error)return showToast(error.message); await refresh('Stock updated');
   }
 
-  window.CloudLedger={load,renderInventory,renderSetup,addLocation,addCatalogPlant,addBatch,adjustStock,getData:()=>data};
+  async function addTask(event){event.preventDefault();const f=new FormData(event.currentTarget);const payload={organization_id:organizationId(),title:String(f.get('title')).trim(),task_type:f.get('task_type'),due_at:new Date(f.get('due_at')).toISOString(),assigned_to:f.get('assigned_to')||null,location_id:f.get('location_id')||null,recurrence_days:f.get('recurrence_days')?Number(f.get('recurrence_days')):null,notes:String(f.get('notes')||'').trim()||null};const {error}=await client().from('care_tasks').insert(payload);if(error)return showToast(error.message);await refresh('Care task created');}
+  async function completeTask(id){const {error}=await client().rpc('complete_care_task',{target_task_id:id});if(error)return showToast(error.message);await refresh('Task completed');}
+  async function inviteStaff(event){event.preventDefault();const f=new FormData(event.currentTarget);const {error}=await client().from('organization_invitations').insert({organization_id:organizationId(),email:String(f.get('email')).trim().toLowerCase(),role:f.get('role')});if(error)return showToast(error.message);await refresh('Invitation created');}
+  async function copyInvite(code){const url=new URL(location.href);url.searchParams.set('invite',code);await navigator.clipboard.writeText(url.toString());showToast('Invitation link copied');}
+  async function uploadBatchPhoto(event,batchId){const file=event.target.files[0];if(!file)return;const path=`${organizationId()}/batches/${batchId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);if(uploaded.error)return showToast(uploaded.error.message);const {error}=await client().from('inventory_batches').update({photo_path:path}).eq('id',batchId);if(error)return showToast(error.message);await refresh('Batch photo uploaded');}
+
+  window.CloudLedger={load,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,addTask,completeTask,inviteStaff,copyInvite,uploadBatchPhoto,getData:()=>data};
 })();
