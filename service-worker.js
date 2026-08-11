@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v12-settings-brand-studio';
+const CACHE_NAME = 'greenhouse-ledger-v12-settings-navigation-repair';
 const APP_SHELL = [
   './',
   './index.html',

@@ -32,6 +32,7 @@ if (!failures.length) pass(`${javascript.length} JavaScript files pass syntax va
 
 const index = read('index.html');
 const worker = read('service-worker.js');
+const settings = read('settings.js');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
 const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => match[1]).filter(path => path !== '');
 
@@ -42,6 +43,16 @@ for (const script of localScripts) {
   if (!shellAssets.includes(script)) fail(`Local script is not cached by the service worker: ${script}`);
 }
 if (!failures.length) pass('PWA shell references exist and local scripts are cached');
+
+if (/function\s+render\s*\(/.test(settings)) {
+  fail('Settings must not shadow the main application render function');
+} else if (!/function\s+open\s*\([^)]*\)\s*\{[^}]*activeTab\s*=\s*['"]settings['"][^}]*render\s*\(\s*\)/s.test(settings)) {
+  fail('Settings navigation must route through the main application renderer');
+} else if (!/render\s*:\s*renderMarkup/.test(settings)) {
+  fail('Settings must expose its HTML renderer as Settings.render');
+} else {
+  pass('Settings dropdown navigation routes through the main application renderer');
+}
 
 const manifest = JSON.parse(read('manifest.webmanifest'));
 if (!manifest.name || !manifest.short_name || !Array.isArray(manifest.icons) || manifest.icons.length < 2) {

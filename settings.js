@@ -60,7 +60,7 @@
   function open(next){section=next;activeTab='settings';render();}
   function sectionButton(key,label){return `<button class="tab ${section===key?'active':''}" onclick="Settings.open('${key}')">${label}</button>`;}
 
-  function render(){
+  function renderMarkup(){
     const p=palette();
     const account=context().profile;
     const canBrand=['owner','manager'].includes(context().role);
@@ -133,5 +133,5 @@
     if(error){status(error.message,true);return;}if(oldPath)await LedgerAuth.client.storage.from('greenhouse-photos').remove([oldPath]);Object.assign(org(),data);logoUrl='';pendingLogo=null;pendingLogoUrl='';applyTheme(DEFAULTS);render();showToast('Branding reset');
   }
 
-  window.Settings={initialize,applyTheme,brandLogoMarkup,toggleMenu,open,render,afterRender,preview,chooseLogo,saveUsername,saveEmail,savePassword,saveBrand,resetBrand};
+  window.Settings={initialize,applyTheme,brandLogoMarkup,toggleMenu,open,render:renderMarkup,afterRender,preview,chooseLogo,saveUsername,saveEmail,savePassword,saveBrand,resetBrand};
 })();
