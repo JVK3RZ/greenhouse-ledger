@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v10-auth-repair';
+const CACHE_NAME = 'greenhouse-ledger-v11-business-auth';
 const APP_SHELL = [
   './',
   './index.html',
