@@ -38,6 +38,23 @@
     if(message) showToast(message);
   }
 
+  function renderDashboard(){
+    if(data.loading) return '<div class="empty">Loading greenhouse dashboard…</div>';
+    const now=new Date();
+    const open=data.tasks.filter(task=>!['completed','cancelled'].includes(task.status));
+    const overdue=open.filter(task=>task.due_at&&new Date(task.due_at)<now);
+    const low=data.batches.filter(batch=>Number(batch.quantity)<=WorkspaceSettings.lowStockThreshold());
+    const units=data.batches.reduce((sum,batch)=>sum+Number(batch.quantity||0),0);
+    const nextTasks=[...open].sort((a,b)=>new Date(a.due_at||'9999-12-31')-new Date(b.due_at||'9999-12-31')).slice(0,6);
+    return `${data.error?`<div class="sync-notice ${data.offline?'offline':''}">${esc(data.error)}</div>`:''}
+      <div class="metric-grid"><div class="metric"><span>Units on hand</span><strong>${units}</strong></div><div class="metric"><span>Production zones</span><strong>${data.locations.length}</strong></div><div class="metric"><span>Open tasks</span><strong>${open.length}</strong></div><div class="metric"><span>Overdue</span><strong>${overdue.length}</strong></div></div>
+      ${low.length?`<div class="sync-notice offline"><strong>Low stock:</strong> ${low.map(batch=>esc(`${batch.plant_catalog?.common_name||'Unknown'} (${batch.quantity})`)).join(' · ')}</div>`:''}
+      <div class="section-label">Next work</div>
+      ${nextTasks.length?nextTasks.map(task=>`<div class="today-item"><div><strong>${esc(task.title)}</strong><div class="today-space">${esc(task.location?.name||'All production zones')} · ${task.due_at?new Date(task.due_at).toLocaleString():'No due date'} · ${esc(task.assignee?.display_name||'Unassigned')}</div></div><button class="btn primary small" onclick="CloudLedger.completeTask('${task.id}')">Complete</button></div>`).join(''):'<div class="empty">No open work. Create a care task from Operations.</div>'}
+      <div class="section-label">Recent activity</div>
+      ${data.activity.slice(0,8).map(item=>`<div class="mini-row"><span><strong>${esc(label(item.action))}</strong><small>${esc(item.actor?.display_name||'System')} · ${esc(label(item.entity_type))}</small></span><small>${new Date(item.created_at).toLocaleString()}</small></div>`).join('')||'<div class="empty">No business activity yet.</div>'}`;
+  }
+
   function renderInventory(){
     if(data.loading) return '<div class="empty">Loading greenhouse inventory…</div>';
     const total=data.batches.reduce((sum,batch)=>sum+batch.quantity,0);
@@ -83,7 +100,7 @@
     return `
       ${data.error?`<div class="sync-notice ${data.offline?'offline':''}">${esc(data.error)}</div>`:''}
       <div class="ops-columns">
-        <section><div class="section-label">Growing locations</div>
+        <section><div class="section-label">Production zones</div>
           <form class="stack-form" onsubmit="CloudLedger.addLocation(event)"><input name="name" placeholder="e.g. House 1 · Bench A" required><select name="location_type"><option>greenhouse</option><option>room</option><option>zone</option><option>bench</option><option>retail</option></select><input name="notes" placeholder="Notes (optional)"><button class="btn primary" type="submit">Add location</button></form>
           ${data.locations.map(location=>`<div class="mini-row"><span><strong>${esc(location.name)}</strong><small>${esc(label(location.location_type))}</small></span></div>`).join('')||'<div class="empty">No locations yet.</div>'}
         </section>
@@ -141,5 +158,5 @@
   async function copyInvite(code){const url=new URL(location.href);url.searchParams.set('invite',code);await navigator.clipboard.writeText(url.toString());showToast('Invitation link copied');}
   async function uploadBatchPhoto(event,batchId){const file=event.target.files[0];if(!file)return;const path=`${organizationId()}/batches/${batchId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);if(uploaded.error)return showToast(uploaded.error.message);const {error}=await client().from('inventory_batches').update({photo_path:path}).eq('id',batchId);if(error)return showToast(error.message);await refresh('Batch photo uploaded');}
 
-  window.CloudLedger={load,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,addTask,completeTask,inviteStaff,copyInvite,uploadBatchPhoto,getData:()=>data};
+  window.CloudLedger={load,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,addTask,completeTask,inviteStaff,copyInvite,uploadBatchPhoto,getData:()=>data};
 })();
