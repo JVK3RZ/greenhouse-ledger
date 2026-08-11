@@ -26,7 +26,7 @@
   function option(value,current){
     return `<option value="${esc(value)}" ${value===current?'selected':''}>${esc(value.replaceAll('_',' '))}</option>`;
   }
-  function settingsMarkup(){
+  function renderMarkup(){
     const context=LedgerAuth.getContext();
     const org=context.organization;
     const canManage=['owner','manager'].includes(context.role);
@@ -70,7 +70,5 @@
     showToast('Workspace settings saved');
   }
 
-  const originalTeam=CloudLedger.renderTeam;
-  CloudLedger.renderTeam=()=>settingsMarkup()+originalTeam();
-  window.WorkspaceSettings={lowStockThreshold,currencyCode,money,save};
+  window.WorkspaceSettings={lowStockThreshold,currencyCode,money,save,renderMarkup};
 })();
