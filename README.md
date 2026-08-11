@@ -1,6 +1,8 @@
 # Greenhouse Ledger
 
-Greenhouse Ledger is an installable, offline-first plant care tracker evolving into a multi-tenant greenhouse inventory platform.
+Greenhouse Ledger is an installable, multi-tenant greenhouse inventory and operations platform.
+
+Current pilot release: `1.1.0` (Phase 11 candidate).
 
 ## Open the app
 
@@ -38,7 +40,7 @@ The gate validates JavaScript syntax, PWA shell and cache consistency, manifest 
 
 ## Data and privacy
 
-Supabase authentication provides a private organization workspace. Shared growing locations, a reusable plant catalog, inventory batches, staff tasks, protected photos, and an auditable stock history are synchronized through Supabase. Phase 4 adds inventory valuation, date-range movement reporting, low-stock review, print-ready summaries, and CSV exports. Phase 5 adds floor-ready inventory search, scanner-friendly SKU and batch lookup, direct batch links, and printable batch labels. Phase 6 adds a guided workspace-readiness checklist and validated bulk catalog onboarding from CSV. Phase 7 adds organization-controlled business identity, currency, timezone, and low-stock alert settings. Phase 8 adds an automated repository quality gate for every pull request and update to `main`. Phase 9 adds manager-controlled, integrity-checked cloud workspace backups and read-only backup inspection. Phase 10 establishes automatic quality-gated deployment and a stable installable app URL. The latest cloud inventory snapshot is cached in IndexedDB for offline viewing; writes resume when the device is online. Existing personal plant records, care logs, terrarium progress, and notes remain device-local. Use **export backup** to move those records to another browser or device.
+Supabase authentication provides a private organization workspace. Users choose a unique username and may sign in with either that username or their email. **Remember me** persists a session and login identifier only when selected; Greenhouse Ledger never stores raw passwords. Shared production zones, a reusable plant catalog, inventory batches, staff tasks, protected photos, and an auditable stock history are synchronized through Supabase. The business navigation centers on the Dashboard, Inventory, Operations, Team, and Production Zones & Catalog; legacy personal Grow Tent, Room Plants, and Terrarium Build views are no longer presented. Existing device-local records remain untouched. The latest cloud inventory snapshot is cached in IndexedDB for offline viewing; writes resume when the device is online.
 
 Cloud workspace backups contain organization-scoped database records and may include staff names and invitation email addresses. Store exported JSON files securely. Database photo paths are included, but binary photo files are not embedded.
 

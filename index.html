@@ -56,6 +56,9 @@ body{
 .auth-form{display:grid;gap:14px;margin-top:24px;}
 .auth-form label{display:grid;gap:6px;font-size:11px;color:var(--ink-dim);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.04em;}
 .auth-form input{width:100%;font-family:'Inter',sans-serif;text-transform:none;letter-spacing:normal;}
+.auth-form small{font-family:'Inter',sans-serif;text-transform:none;letter-spacing:normal;line-height:1.4;}
+.auth-form .remember-row{display:flex;grid-template-columns:auto 1fr;align-items:center;gap:9px;font-family:'Inter',sans-serif;text-transform:none;letter-spacing:normal;font-size:13px;cursor:pointer;}
+.auth-form .remember-row input{width:auto;margin:0;}
 .auth-message{color:var(--clay-light);font-size:13px;line-height:1.45;margin:14px 0 0;}
 .auth-switch{margin-top:12px!important;}
 .account-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;color:var(--ink-dim);font-size:12px;}
@@ -390,28 +393,22 @@ function render(){
 
   app.innerHTML = `
     <div class="header">
-      <div class="eyebrow">field log</div>
+      <div class="eyebrow">greenhouse operations</div>
       <h1>Greenhouse Ledger</h1>
-      <div class="sub">Watering, feeding, and growth — tracked across the tent, the room, and the build.</div>
+      <div class="sub">Inventory, production zones, care work, reporting, and staff accountability in one secure workspace.</div>
       <div class="account-bar"><span><strong>${esc(authContext.organization.name)}</strong> · ${esc(authContext.role)}</span><button class="btn ghost small" onclick="LedgerAuth.signOut()">Sign out</button></div>
     </div>
     <div class="tabs">
-      ${tabBtn('today','Today')}
+      ${tabBtn('today','Dashboard')}
       ${tabBtn('inventory','Inventory', CloudLedger.getData().batches.length)}
       ${tabBtn('operations','Operations', CloudLedger.getData().tasks.filter(t=>!['completed','cancelled'].includes(t.status)).length)}
       ${tabBtn('team','Team')}
-      ${tabBtn('setup','Locations & Catalog')}
-      ${tabBtn('tent','Grow Tent', tentCount)}
-      ${tabBtn('room','Room Plants', roomCount)}
-      ${tabBtn('terrarium','Terrarium Build')}
-      ${tabBtn('log','Growth Log')}
-      ${tabBtn('identify','Identify')}
-      ${tabBtn('ideas','Ideas')}
+      ${tabBtn('setup','Production Zones & Catalog')}
     </div>
     <div id="content"></div>
     <div class="footer">
-      <span>${state.plants.length} plant${state.plants.length===1?'':'s'} tracked · saved automatically</span>
-      <span><a onclick="exportBackup()">export backup</a> · <a onclick="document.getElementById('backup-file').click()">import</a> · <a onclick="resetAll()">reset all</a></span>
+      <span>${CloudLedger.getData().batches.reduce((sum,batch)=>sum+Number(batch.quantity||0),0)} inventory units · synchronized securely</span>
+      <span>Greenhouse Ledger · pilot 1.1</span>
     </div>
     <input id="backup-file" type="file" accept="application/json,.json" onchange="importBackup(event)" hidden />
   `;
@@ -425,7 +422,7 @@ function setTab(key){ activeTab = key; render(); }
 
 function renderContent(){
   const c = document.getElementById('content');
-  if(activeTab==='today') c.innerHTML = renderToday();
+  if(activeTab==='today') c.innerHTML = CloudLedger.renderDashboard();
   else if(activeTab==='inventory') c.innerHTML = CloudLedger.renderInventory();
   else if(activeTab==='operations') c.innerHTML = CloudLedger.renderOperations();
   else if(activeTab==='team') c.innerHTML = CloudLedger.renderTeam();

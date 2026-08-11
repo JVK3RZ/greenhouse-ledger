@@ -1,7 +1,7 @@
 {
   "name": "Greenhouse Ledger",
   "short_name": "Ledger",
-  "description": "An offline field log for plants, care routines, growth, and terrarium builds.",
+  "description": "Secure greenhouse inventory, production-zone, care-task, reporting, and staff operations.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
