@@ -52,7 +52,10 @@
     const password = String(form.get('password')||'');
     event.currentTarget.querySelector('button[type="submit"]').disabled = true;
     const result = mode==='signup'
-      ? await client.auth.signUp({email,password,options:{data:{display_name:String(form.get('displayName')||'').trim()}}})
+      ? await client.auth.signUp({email,password,options:{
+          emailRedirectTo:new URL('./',window.location.href).href,
+          data:{display_name:String(form.get('displayName')||'').trim()}
+        }})
       : await client.auth.signInWithPassword({email,password});
     if(result.error){ renderAuth(mode,result.error.message); return; }
     if(mode==='signup' && !result.data.session){
