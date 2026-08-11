@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v11-business-auth';
+const CACHE_NAME = 'greenhouse-ledger-v12-settings-brand-studio';
 const APP_SHELL = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const APP_SHELL = [
   './field-tools.js',
   './catalog-onboarding.js',
   './workspace-settings.js',
+  './settings.js',
   './data-portability.js',
   './assets/icons/icon.svg',
   './assets/icons/icon-192.png',

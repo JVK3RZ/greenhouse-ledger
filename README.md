@@ -2,7 +2,7 @@
 
 Greenhouse Ledger is an installable, multi-tenant greenhouse inventory and operations platform.
 
-Current pilot release: `1.1.0` (Phase 11 candidate).
+Current pilot release candidate: `1.2.0` (Phase 12).
 
 ## Open the app
 
@@ -41,6 +41,8 @@ The gate validates JavaScript syntax, PWA shell and cache consistency, manifest 
 ## Data and privacy
 
 Supabase authentication provides a private organization workspace. Users choose a unique username and may sign in with either that username or their email. **Remember me** persists a session and login identifier only when selected; Greenhouse Ledger never stores raw passwords. Shared production zones, a reusable plant catalog, inventory batches, staff tasks, protected photos, and an auditable stock history are synchronized through Supabase. The business navigation centers on the Dashboard, Inventory, Operations, Team, and Production Zones & Catalog; legacy personal Grow Tent, Room Plants, and Terrarium Build views are no longer presented. Existing device-local records remain untouched. The latest cloud inventory snapshot is cached in IndexedDB for offline viewing; writes resume when the device is online.
+
+The Settings menu centralizes account security and business preferences. Organization owners and managers can publish a shared logo and accessible color palette through Brand Studio. Logos remain in private, organization-scoped storage, and the interface can suggest colors locally from a raster logo without uploading it until the user publishes the branding.
 
 Cloud workspace backups contain organization-scoped database records and may include staff names and invitation email addresses. Store exported JSON files securely. Database photo paths are included, but binary photo files are not embedded.
 

@@ -107,15 +107,15 @@
       if(accepted.error){ renderAuth('signin',accepted.error.message); return; }
       const cleanUrl=new URL(location.href); cleanUrl.searchParams.delete('invite'); history.replaceState({},'',cleanUrl);
     }
-    const profileResult = await client.from('profiles').select('username').eq('id',session.user.id).single();
+    const profileResult = await client.from('profiles').select('username,display_name').eq('id',session.user.id).single();
     if(profileResult.error){ renderAuth('signin',profileResult.error.message); return; }
     if(!profileResult.data.username){ renderUsername(); return; }
     const {data:memberships,error} = await client.from('organization_members')
-      .select('role, organization:organizations(id,name,currency_code,timezone,low_stock_threshold)')
+      .select('role, organization:organizations(id,name,currency_code,timezone,low_stock_threshold,brand_primary,brand_accent,brand_background,brand_logo_path)')
       .eq('profile_id',session.user.id).limit(1);
     if(error){ renderAuth('signin',error.message); return; }
     if(!memberships.length){ renderOrganization(); return; }
-    context = {session,profile:session.user,organization:memberships[0].organization,role:memberships[0].role};
+    context = {session,profile:{...session.user,...profileResult.data},organization:memberships[0].organization,role:memberships[0].role};
     onReady(context);
   }
 
