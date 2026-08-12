@@ -139,6 +139,8 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Plant-health reports and follow-ups must preserve audit history');
 } else if (!/organizationId\(\)\}\/issues/.test(cloudLedger) || !/Photo path must belong to this issue/.test(plantHealthMigration)) {
   fail('Issue photos must use the organization- and issue-scoped storage path');
+} else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
+  fail('Plant-health form columns and controls must remain constrained inside their card');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
 }
