@@ -33,6 +33,10 @@ if (!failures.length) pass(`${javascript.length} JavaScript files pass syntax va
 const index = read('index.html');
 const worker = read('service-worker.js');
 const settings = read('settings.js');
+const auth = read('auth.js');
+const cloudLedger = read('cloud-ledger.js');
+const invitationMigration = read('supabase/migrations/20260812150000_phase_13_team_invitations.sql');
+const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
 const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => match[1]).filter(path => path !== '');
 
@@ -52,6 +56,20 @@ if (/function\s+render\s*\(/.test(settings)) {
   fail('Settings must expose its HTML renderer as Settings.render');
 } else {
   pass('Settings dropdown navigation routes through the main application renderer');
+}
+
+if (!/get_organization_invitation_details/.test(auth) || !/emailRedirectTo\s*:\s*window\.location\.href/.test(auth)) {
+  fail('Invitation acceptance must preview safely and survive email confirmation');
+} else if (!/Create owner account/.test(auth) || !/Create account & accept/.test(auth)) {
+  fail('Owner-first and invited-staff onboarding must remain distinct');
+} else if (!/revoke_organization_invitation/.test(cloudLedger) || !/send-organization-invitation/.test(cloudLedger)) {
+  fail('Team invitation controls must use the protected lifecycle endpoints');
+} else if (!/revoked_at is null and expires_at>now\(\)/.test(invitationMigration) || !/drop policy if exists invitations_update/.test(invitationMigration)) {
+  fail('Invitation migration must reject revoked/expired links and block arbitrary row updates');
+} else if (!/SUPABASE_SERVICE_ROLE_KEY/.test(invitationFunction) || !/Owner or manager access required/.test(invitationFunction) || !/RESEND_API_KEY/.test(invitationFunction)) {
+  fail('Invitation email delivery must authenticate managers and keep provider secrets server-side');
+} else {
+  pass('Owner-first invitation lifecycle and server-side email boundaries are enforced');
 }
 
 const manifest = JSON.parse(read('manifest.webmanifest'));

@@ -17,6 +17,7 @@
   });
   let context = null;
   let onReady = null;
+  let invitationPreview = null;
 
   function escapeHtml(value){
     return String(value).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -25,19 +26,22 @@
   function authMarkup(mode='signin', message=''){
     const signingUp = mode === 'signup';
     const rememberedLogin = rememberSession ? localStorage.getItem(LOGIN_KEY) || '' : '';
+    const inviteEmail = invitationPreview?.email || '';
+    const invitePanel = invitationPreview?`<div class="invitation-welcome"><div class="eyebrow">Staff invitation</div><h2>Join ${escapeHtml(invitationPreview.organization_name)}</h2><p>You were invited as <strong>${escapeHtml(invitationPreview.role)}</strong>. This single-use invitation is reserved for <strong>${escapeHtml(inviteEmail)}</strong> and expires ${new Date(invitationPreview.expires_at).toLocaleString()}.</p></div>`:'';
     return `<div class="auth-shell"><div class="auth-card">
+      ${invitePanel}
       <div class="eyebrow">Greenhouse operations</div>
       <h1>Greenhouse Ledger</h1>
-      <p class="sub">Sign in to securely manage your greenhouse team and inventory. Your existing device records remain stored offline.</p>
+      <p class="sub">${invitationPreview?'Sign in with the invited email, or create the staff account that will accept this invitation.':'Create the owner account first, then set up the private business workspace and invite your team.'}</p>
       <form id="auth-form" class="auth-form">
         ${signingUp?'<label>Display name<input name="displayName" autocomplete="name" required maxlength="80" /></label><label>Username<input name="username" autocomplete="username" required minlength="3" maxlength="30" pattern="[A-Za-z0-9][A-Za-z0-9._-]{1,28}[A-Za-z0-9]" placeholder="greenhouse_manager" /><small>3–30 characters: letters, numbers, periods, hyphens, or underscores.</small></label>':''}
-        <label>${signingUp?'Email':'Email or username'}<input name="login" ${signingUp?'type="email" autocomplete="email"':'autocomplete="username"'} required value="${escapeHtml(signingUp?'':rememberedLogin)}" /></label>
+        <label>${signingUp?'Email':'Email or username'}<input name="login" ${signingUp?'type="email" autocomplete="email"':'autocomplete="username"'} required value="${escapeHtml(signingUp?inviteEmail:rememberedLogin)}" ${signingUp&&inviteEmail?'readonly':''} /></label>
         <label>Password<input name="password" type="password" autocomplete="current-password" required minlength="8" /></label>
         ${signingUp?'':`<label class="remember-row"><input name="remember" type="checkbox" ${rememberSession?'checked':''} /> <span>Remember me on this device</span></label>`}
-        <button class="btn primary" type="submit">${signingUp?'Create account':'Sign in'}</button>
+        <button class="btn primary" type="submit">${signingUp?(invitationPreview?'Create account & accept':'Create owner account'):(invitationPreview?'Sign in & accept':'Sign in')}</button>
       </form>
       ${message?`<p class="auth-message">${escapeHtml(message)}</p>`:''}
-      <button class="btn ghost auth-switch" data-mode="${signingUp?'signin':'signup'}">${signingUp?'Already have an account? Sign in':'New to Greenhouse Ledger? Create an account'}</button>
+      <button class="btn ghost auth-switch" data-mode="${signingUp?'signin':'signup'}">${signingUp?'Already have an account? Sign in':invitationPreview?'Need an account? Create one for this invitation':'New owner? Create an account'}</button>
     </div></div>`;
   }
 
@@ -74,7 +78,7 @@
     event.currentTarget.querySelector('button[type="submit"]').disabled = true;
     const result = mode==='signup'
       ? await client.auth.signUp({email:login,password,options:{
-          emailRedirectTo:new URL('./',window.location.href).href,
+          emailRedirectTo:window.location.href,
           data:{display_name:String(form.get('displayName')||'').trim(),username:String(form.get('username')||'').trim().toLowerCase()}
         }})
       : await signIn(login,password);
@@ -106,6 +110,7 @@
       const accepted = await client.rpc('accept_organization_invitation',{invitation_code:invitationCode});
       if(accepted.error){ renderAuth('signin',accepted.error.message); return; }
       const cleanUrl=new URL(location.href); cleanUrl.searchParams.delete('invite'); history.replaceState({},'',cleanUrl);
+      invitationPreview=null;
     }
     const profileResult = await client.from('profiles').select('username,display_name').eq('id',session.user.id).single();
     if(profileResult.error){ renderAuth('signin',profileResult.error.message); return; }
@@ -161,6 +166,12 @@
 
   async function initialize(options){
     onReady = options.onReady;
+    const invitationCode = new URL(location.href).searchParams.get('invite');
+    if(invitationCode){
+      const preview=await client.rpc('get_organization_invitation_details',{invitation_code:invitationCode});
+      if(preview.error||!preview.data?.length){ renderAuth('signin','This invitation is invalid, expired, or has been revoked. Ask the owner for a new invitation.'); return; }
+      invitationPreview=preview.data?.[0]||null;
+    }
     const {data:{session}} = await client.auth.getSession();
     await routeSession(session);
     client.auth.onAuthStateChange((event,nextSession)=>{
