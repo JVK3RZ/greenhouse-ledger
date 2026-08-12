@@ -1,12 +1,27 @@
 (function(){
   const STAGES = ['propagation','seedling','vegetative','finishing','retail_ready','dormant'];
-  let data = {locations:[],catalog:[],batches:[],transactions:[],tasks:[],members:[],invitations:[],activity:[],loading:false,offline:false,error:null};
+  let data = {locations:[],catalog:[],batches:[],transactions:[],counts:[],tasks:[],members:[],invitations:[],activity:[],loading:false,offline:false,error:null};
+  let inventoryTool = 'single';
 
   const client = () => LedgerAuth.client;
   const organizationId = () => LedgerAuth.getContext().organization.id;
   const money = value => value == null ? '—' : WorkspaceSettings.money(value);
   const label = value => String(value||'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
   const option = (value,text) => `<option value="${esc(value)}">${esc(text)}</option>`;
+  const activeCatalog = () => data.catalog.filter(item=>item.status!=='archived');
+
+  function bulkReceiptRow(){
+    return `<div class="bulk-receive-row">
+      <label>Product<select name="plant_catalog_id" required>${activeCatalog().map(item=>option(item.id,[item.common_name,item.container_size].filter(Boolean).join(' · '))).join('')}</select></label>
+      <label>Location<select name="location_id" required>${data.locations.map(item=>option(item.id,item.name)).join('')}</select></label>
+      <label>Quantity<input name="quantity" type="number" min="1" required></label>
+      <label>Stage<select name="stage">${STAGES.map(stage=>option(stage,label(stage))).join('')}</select></label>
+      <label>Batch code<input name="batch_code" placeholder="optional"></label>
+      <label>Unit cost<input name="unit_cost" type="number" min="0" step="0.01"></label>
+      <label>Unit price<input name="unit_price" type="number" min="0" step="0.01"></label>
+      <button class="btn ghost small" type="button" onclick="this.closest('.bulk-receive-row').remove()">Remove</button>
+    </div>`;
+  }
 
   function onboardingState(){
     const role=LedgerAuth.getContext().role;
@@ -38,24 +53,25 @@
   async function load(){
     data.loading=true; data.error=null;
     const org=organizationId();
-    const [locations,catalog,batches,transactions,tasks,members,invitations,activity]=await Promise.all([
+    const [locations,catalog,batches,transactions,counts,tasks,members,invitations,activity]=await Promise.all([
       client().from('locations').select('*').eq('organization_id',org).order('name'),
       client().from('plant_catalog').select('*').eq('organization_id',org).order('common_name'),
       client().from('inventory_batches').select('*, plant_catalog(*), location:locations(*)').eq('organization_id',org).order('created_at',{ascending:false}),
       client().from('inventory_transactions').select('*').eq('organization_id',org).order('created_at',{ascending:false}).limit(100),
+      client().from('inventory_counts').select('*, location:locations(name), inventory_count_lines(*, batch:inventory_batches(batch_code, plant_catalog(common_name,container_size), location:locations(name)))').eq('organization_id',org).order('started_at',{ascending:false}).limit(10),
       client().from('care_tasks').select('*, assignee:profiles!care_tasks_assigned_to_fkey(display_name), location:locations(name), batch:inventory_batches(batch_code,plant_catalog(common_name))').eq('organization_id',org).order('due_at'),
       client().from('organization_members').select('profile_id,role,profile:profiles(display_name)').eq('organization_id',org),
       client().from('organization_invitations').select('*').eq('organization_id',org).order('created_at',{ascending:false}),
       client().from('activity_logs').select('*, actor:profiles(display_name)').eq('organization_id',org).order('created_at',{ascending:false}).limit(50)
     ]);
-    const failed=[locations,catalog,batches,transactions,tasks,members,invitations,activity].find(result=>result.error);
+    const failed=[locations,catalog,batches,transactions,counts,tasks,members,invitations,activity].find(result=>result.error);
     if(failed){
       const cached=await loadData(`cloud-${org}`,null);
       if(cached){ data={...cached,loading:false,offline:true,error:'Showing the last saved cloud snapshot.'}; }
       else { data.loading=false; data.offline=true; data.error=failed.error.message; }
       return;
     }
-    data={locations:locations.data||[],catalog:catalog.data||[],batches:batches.data||[],transactions:transactions.data||[],tasks:tasks.data||[],members:members.data||[],invitations:invitations.data||[],activity:activity.data||[],loading:false,offline:false,error:null};
+    data={locations:locations.data||[],catalog:catalog.data||[],batches:batches.data||[],transactions:transactions.data||[],counts:counts.data||[],tasks:tasks.data||[],members:members.data||[],invitations:invitations.data||[],activity:activity.data||[],loading:false,offline:false,error:null};
     await saveData(`cloud-${org}`,data);
   }
 
@@ -87,6 +103,10 @@
     if(data.loading) return '<div class="empty">Loading greenhouse inventory…</div>';
     const total=data.batches.reduce((sum,batch)=>sum+batch.quantity,0);
     const retail=data.batches.filter(batch=>batch.stage==='retail_ready').reduce((sum,batch)=>sum+batch.quantity,0);
+    const openCount=data.counts.find(count=>count.status==='draft');
+    const canApprove=['owner','manager'].includes(LedgerAuth.getContext().role);
+    const counted=openCount?.inventory_count_lines.filter(line=>line.counted_quantity!==null).length||0;
+    const countLines=openCount?.inventory_count_lines||[];
     return `
       ${data.error?`<div class="sync-notice ${data.offline?'offline':''}">${esc(data.error)}</div>`:''}
       <div class="metric-grid">
@@ -95,10 +115,16 @@
         <div class="metric"><span>Retail ready</span><strong>${retail}</strong></div>
         <div class="metric"><span>Locations</span><strong>${data.locations.length}</strong></div>
       </div>
-      <div class="section-label">Receive inventory</div>
-      ${data.catalog.filter(item=>item.status!=='archived').length&&data.locations.length?`
+      <div class="section-label">Inventory tools</div>
+      <div class="inventory-tools">
+        <button class="${inventoryTool==='single'?'active':''}" onclick="CloudLedger.setInventoryTool('single')"><span>＋</span><strong>Receive one batch</strong><small>Add one incoming product.</small></button>
+        <button class="${inventoryTool==='bulk'?'active':''}" onclick="CloudLedger.setInventoryTool('bulk')"><span>▦</span><strong>Bulk receiving</strong><small>Receive several batches together.</small></button>
+        <button class="${inventoryTool==='count'?'active':''}" onclick="CloudLedger.setInventoryTool('count')"><span>✓</span><strong>Physical stock count</strong><small>Compare the shelf to the ledger.</small></button>
+      </div>
+      ${inventoryTool==='single'?`<div class="section-label">Receive one batch</div>
+      ${activeCatalog().length&&data.locations.length?`
         <form class="ops-form" onsubmit="CloudLedger.addBatch(event)">
-          <label>Product<select name="plant_catalog_id" required>${data.catalog.filter(item=>item.status!=='archived').map(item=>option(item.id,[item.common_name,item.container_size].filter(Boolean).join(' · '))).join('')}</select></label>
+          <label>Product<select name="plant_catalog_id" required>${activeCatalog().map(item=>option(item.id,[item.common_name,item.container_size].filter(Boolean).join(' · '))).join('')}</select></label>
           <label>Location<select name="location_id" required>${data.locations.map(item=>option(item.id,item.name)).join('')}</select></label>
           <label>Quantity<input name="quantity" type="number" min="1" required></label>
           <label>Stage<select name="stage">${STAGES.map(stage=>option(stage,label(stage))).join('')}</select></label>
@@ -107,7 +133,15 @@
           <label>Unit price<input name="unit_price" type="number" min="0" step="0.01"></label>
           <button class="btn primary" type="submit">Receive batch</button>
         </form>`:
-        `<div class="empty">Add at least one location and one catalog plant before receiving inventory.</div>`}
+        `<div class="empty">Add at least one location and one active catalog product before receiving inventory.</div>`}`:''}
+      ${inventoryTool==='bulk'?`<div class="section-label">Bulk receiving</div>
+        ${activeCatalog().length&&data.locations.length?`<form class="bulk-receive-form" onsubmit="CloudLedger.bulkReceive(event)"><p class="report-note">Add every incoming batch, then save once. If any row is invalid, none of the receipt is posted.</p><div class="bulk-receive-rows">${bulkReceiptRow()}</div><div class="card-actions"><button class="btn" type="button" onclick="CloudLedger.addBulkRow()">Add another batch</button><button class="btn primary" type="submit">Receive all batches</button></div></form>`:'<div class="empty">Add a production zone and active catalog product before bulk receiving.</div>'}`:''}
+      ${inventoryTool==='count'?`<div class="section-label">Physical stock count</div>
+        ${openCount?`<section class="count-sheet"><div class="count-head"><div><h2>${esc(openCount.location?.name||'All locations')}</h2><p>${counted} of ${countLines.length} batches counted · expected quantities stay unchanged until approval.</p></div><span class="status-badge status-pending">In progress</span></div>
+          <div class="count-lines">${countLines.map(line=>{const variance=line.counted_quantity===null?null:Number(line.counted_quantity)-Number(line.expected_quantity);return `<form class="count-line" onsubmit="CloudLedger.saveCountLine(event,'${openCount.id}','${line.batch_id}')"><div><strong>${esc(line.batch?.plant_catalog?.common_name||'Unknown product')}</strong><small>${esc(line.batch?.location?.name||'Unassigned')} · ${esc(line.batch?.batch_code||'No batch code')}</small></div><span>Expected <b>${line.expected_quantity}</b></span><label>Counted<input name="physical_quantity" type="number" min="0" value="${line.counted_quantity??''}" required></label><button class="btn small" type="submit">Save</button><em class="${variance===0?'count-even':variance===null?'':'count-difference'}">${variance===null?'Not counted':variance===0?'Matches':`${variance>0?'+':''}${variance} difference`}</em></form>`}).join('')}</div>
+          <div class="card-actions">${canApprove?`<button class="btn ghost" onclick="CloudLedger.cancelCount('${openCount.id}')">Cancel count</button><button class="btn primary" onclick="CloudLedger.finalizeCount('${openCount.id}')" ${counted!==countLines.length?'disabled':''}>Approve adjustments</button>`:'<span class="report-note">A manager or owner approves the final adjustments.</span>'}</div>
+        </section>`:`${data.batches.length?`<form class="ops-form count-start" onsubmit="CloudLedger.startCount(event)"><label>Count area<select name="location_id"><option value="">All locations</option>${data.locations.map(item=>option(item.id,item.name)).join('')}</select></label><label>Count note<input name="notes" placeholder="e.g. Friday closing count"></label><button class="btn primary" type="submit">Start physical count</button></form>`:'<div class="empty">Receive inventory before starting a physical count.</div>'}
+        ${data.counts.filter(count=>count.status!=='draft').length?`<div class="section-label">Recent counts</div>${data.counts.filter(count=>count.status!=='draft').slice(0,5).map(count=>`<div class="mini-row"><span><strong>${esc(count.location?.name||'All locations')}</strong><small>${esc(label(count.status))} · ${new Date(count.started_at).toLocaleString()}</small></span><small>${count.inventory_count_lines.length} batches</small></div>`).join('')}`:''}`}`:''}
       <div class="section-label">Current batches</div>
       ${data.batches.length?data.batches.map(batch=>`
         <div class="card inventory-card">
@@ -183,6 +217,22 @@
     event.preventDefault(); const form=new FormData(event.currentTarget); let kind=form.get('transaction_type'); let delta=Number(form.get('quantity')); if(['sale','loss','adjustment_out'].includes(kind))delta*=-1; if(kind.startsWith('adjustment_'))kind='adjustment';
     const {error}=await client().rpc('adjust_inventory_stock',{target_batch_id:batchId,stock_delta:delta,kind,stock_note:String(form.get('note')||'').trim()||null}); if(error)return showToast(error.message); await refresh('Stock updated');
   }
+  function setInventoryTool(tool){inventoryTool=tool;render();}
+  function addBulkRow(){document.querySelector('.bulk-receive-rows')?.insertAdjacentHTML('beforeend',bulkReceiptRow());}
+  async function bulkReceive(event){
+    event.preventDefault();
+    const items=[...event.currentTarget.querySelectorAll('.bulk-receive-row')].map(row=>{
+      const form=new FormData(); row.querySelectorAll('input,select').forEach(field=>form.set(field.name,field.value));
+      return {plant_catalog_id:form.get('plant_catalog_id'),location_id:form.get('location_id'),quantity:Number(form.get('quantity')),stage:form.get('stage'),batch_code:String(form.get('batch_code')||'').trim()||null,unit_cost:form.get('unit_cost')||null,unit_price:form.get('unit_price')||null};
+    });
+    if(!items.length)return showToast('Add at least one batch to the receipt');
+    const {error}=await client().rpc('bulk_receive_inventory',{target_organization_id:organizationId(),receipt_items:items});
+    if(error)return showToast(error.message); await refresh(`${items.length} batches received`);
+  }
+  async function startCount(event){event.preventDefault();const form=new FormData(event.currentTarget);const {error}=await client().rpc('start_inventory_count',{target_organization_id:organizationId(),target_location_id:form.get('location_id')||null,count_notes:String(form.get('notes')||'').trim()||null});if(error)return showToast(error.message);await refresh('Physical count started');}
+  async function saveCountLine(event,countId,batchId){event.preventDefault();const form=new FormData(event.currentTarget);const {error}=await client().rpc('record_inventory_count',{target_count_id:countId,target_batch_id:batchId,physical_quantity:Number(form.get('physical_quantity'))});if(error)return showToast(error.message);await refresh('Count saved');}
+  async function finalizeCount(id){if(!confirm('Approve this count and adjust the ledger to the physical quantities?'))return;const {error}=await client().rpc('finalize_inventory_count',{target_count_id:id});if(error)return showToast(error.message);await refresh('Physical count approved and inventory adjusted');}
+  async function cancelCount(id){if(!confirm('Cancel this physical count? No inventory quantities will change.'))return;const {error}=await client().rpc('cancel_inventory_count',{target_count_id:id});if(error)return showToast(error.message);await refresh('Physical count cancelled');}
 
   async function addTask(event){event.preventDefault();const f=new FormData(event.currentTarget);const payload={organization_id:organizationId(),title:String(f.get('title')).trim(),task_type:f.get('task_type'),due_at:new Date(f.get('due_at')).toISOString(),assigned_to:f.get('assigned_to')||null,location_id:f.get('location_id')||null,recurrence_days:f.get('recurrence_days')?Number(f.get('recurrence_days')):null,notes:String(f.get('notes')||'').trim()||null};const {error}=await client().from('care_tasks').insert(payload);if(error)return showToast(error.message);await refresh('Care task created');}
   async function completeTask(id){const {error}=await client().rpc('complete_care_task',{target_task_id:id});if(error)return showToast(error.message);await refresh('Task completed');}
@@ -200,5 +250,5 @@
   async function replaceInvite(id){const original=data.invitations.find(i=>i.id===id);if(!original)return;const {data:replacement,error}=await client().from('organization_invitations').insert({organization_id:organizationId(),email:original.email,role:original.role}).select().single();if(error)return showToast(error.message);await refresh('Replacement invitation created');await copyInvite(replacement.code);}
   async function uploadBatchPhoto(event,batchId){const file=event.target.files[0];if(!file)return;const path=`${organizationId()}/batches/${batchId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);if(uploaded.error)return showToast(uploaded.error.message);const {error}=await client().from('inventory_batches').update({photo_path:path}).eq('id',batchId);if(error)return showToast(error.message);await refresh('Batch photo uploaded');}
 
-  window.CloudLedger={load,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,uploadBatchPhoto,getData:()=>data};
+  window.CloudLedger={load,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,setInventoryTool,addBulkRow,bulkReceive,startCount,saveCountLine,finalizeCount,cancelCount,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,uploadBatchPhoto,getData:()=>data};
 })();
