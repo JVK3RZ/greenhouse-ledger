@@ -1,6 +1,6 @@
 (function(){
   const STAGES = ['propagation','seedling','vegetative','finishing','retail_ready','dormant'];
-  let data = {locations:[],catalog:[],batches:[],transactions:[],counts:[],tasks:[],members:[],invitations:[],activity:[],loading:false,offline:false,error:null};
+  let data = {locations:[],catalog:[],batches:[],transactions:[],counts:[],tasks:[],issues:[],members:[],invitations:[],activity:[],loading:false,offline:false,error:null};
   let inventoryTool = 'single';
 
   const client = () => LedgerAuth.client;
@@ -53,25 +53,26 @@
   async function load(){
     data.loading=true; data.error=null;
     const org=organizationId();
-    const [locations,catalog,batches,transactions,counts,tasks,members,invitations,activity]=await Promise.all([
+    const [locations,catalog,batches,transactions,counts,tasks,issues,members,invitations,activity]=await Promise.all([
       client().from('locations').select('*').eq('organization_id',org).order('name'),
       client().from('plant_catalog').select('*').eq('organization_id',org).order('common_name'),
       client().from('inventory_batches').select('*, plant_catalog(*), location:locations(*)').eq('organization_id',org).order('created_at',{ascending:false}),
       client().from('inventory_transactions').select('*').eq('organization_id',org).order('created_at',{ascending:false}).limit(100),
       client().from('inventory_counts').select('*, location:locations(name), inventory_count_lines(*, batch:inventory_batches(batch_code, plant_catalog(common_name,container_size), location:locations(name)))').eq('organization_id',org).order('started_at',{ascending:false}).limit(10),
       client().from('care_tasks').select('*, assignee:profiles!care_tasks_assigned_to_fkey(display_name), location:locations(name), batch:inventory_batches(batch_code,plant_catalog(common_name))').eq('organization_id',org).order('due_at'),
+      client().from('plant_health_issues').select('*, batch:inventory_batches(batch_code,plant_catalog(common_name,container_size)), location:locations(name), reporter:profiles!plant_health_issues_reported_by_fkey(display_name), plant_health_issue_updates(*, author:profiles!plant_health_issue_updates_created_by_fkey(display_name))').eq('organization_id',org).order('created_at',{ascending:false}),
       client().from('organization_members').select('profile_id,role,profile:profiles(display_name)').eq('organization_id',org),
       client().from('organization_invitations').select('*').eq('organization_id',org).order('created_at',{ascending:false}),
       client().from('activity_logs').select('*, actor:profiles(display_name)').eq('organization_id',org).order('created_at',{ascending:false}).limit(50)
     ]);
-    const failed=[locations,catalog,batches,transactions,counts,tasks,members,invitations,activity].find(result=>result.error);
+    const failed=[locations,catalog,batches,transactions,counts,tasks,issues,members,invitations,activity].find(result=>result.error);
     if(failed){
       const cached=await loadData(`cloud-${org}`,null);
       if(cached){ data={...cached,loading:false,offline:true,error:'Showing the last saved cloud snapshot.'}; }
       else { data.loading=false; data.offline=true; data.error=failed.error.message; }
       return;
     }
-    data={locations:locations.data||[],catalog:catalog.data||[],batches:batches.data||[],transactions:transactions.data||[],counts:counts.data||[],tasks:tasks.data||[],members:members.data||[],invitations:invitations.data||[],activity:activity.data||[],loading:false,offline:false,error:null};
+    data={locations:locations.data||[],catalog:catalog.data||[],batches:batches.data||[],transactions:transactions.data||[],counts:counts.data||[],tasks:tasks.data||[],issues:issues.data||[],members:members.data||[],invitations:invitations.data||[],activity:activity.data||[],loading:false,offline:false,error:null};
     await saveData(`cloud-${org}`,data);
   }
 
@@ -176,10 +177,30 @@
   function renderOperations(){
     const now=new Date(); const open=data.tasks.filter(t=>!['completed','cancelled'].includes(t.status));
     const overdue=open.filter(t=>t.due_at&&new Date(t.due_at)<now); const low=data.batches.filter(b=>b.quantity<=WorkspaceSettings.lowStockThreshold());
+    const activeIssues=data.issues.filter(issue=>issue.status!=='resolved');
     const memberOptions='<option value="">Unassigned</option>'+data.members.map(m=>option(m.profile_id,m.profile?.display_name||m.profile_id.slice(0,8))).join('');
     return `${data.error?`<div class="sync-notice ${data.offline?'offline':''}">${esc(data.error)}</div>`:''}
-      <div class="metric-grid"><div class="metric"><span>Open tasks</span><strong>${open.length}</strong></div><div class="metric"><span>Overdue</span><strong>${overdue.length}</strong></div><div class="metric"><span>Low stock</span><strong>${low.length}</strong></div><div class="metric"><span>Staff</span><strong>${data.members.length}</strong></div></div>
+      <div class="metric-grid"><div class="metric"><span>Open tasks</span><strong>${open.length}</strong></div><div class="metric"><span>Overdue</span><strong>${overdue.length}</strong></div><div class="metric"><span>Low stock</span><strong>${low.length}</strong></div><div class="metric"><span>Open plant issues</span><strong>${activeIssues.length}</strong></div></div>
       ${low.length?`<div class="sync-notice offline"><strong>Low stock:</strong> ${low.map(b=>esc(`${b.plant_catalog.common_name} (${b.quantity})`)).join(' · ')}</div>`:''}
+      <div class="section-label">Plant health &amp; issues</div>
+      ${data.batches.length||data.locations.length?`<form class="issue-report-form" onsubmit="CloudLedger.reportIssue(event)">
+        <div class="issue-form-head"><div><strong>Report an observation</strong><small>Record pests, disease, damage, or growing-condition concerns for the team to follow.</small></div></div>
+        <label>Title<input name="title" maxlength="120" placeholder="e.g. Aphids on lower leaves" required></label>
+        <label>Type<select name="issue_type"><option value="pest">Pest</option><option value="disease">Disease</option><option value="damage">Damage</option><option value="environmental">Environmental</option><option value="other">Other</option></select></label>
+        <label>Severity<select name="severity"><option value="low">Low</option><option value="moderate" selected>Moderate</option><option value="high">High</option><option value="critical">Critical</option></select></label>
+        <label>Batch<select name="batch_id"><option value="">No specific batch</option>${data.batches.map(b=>option(b.id,[b.plant_catalog?.common_name,b.batch_code,b.location?.name].filter(Boolean).join(' · '))).join('')}</select></label>
+        <label>Production zone<select name="location_id"><option value="">No specific zone</option>${data.locations.map(l=>option(l.id,l.name)).join('')}</select></label>
+        <label class="issue-description">What did you observe?<textarea name="description" maxlength="2000" rows="2" placeholder="Symptoms, affected area, and any immediate action"></textarea></label>
+        <label class="btn small photo-label">Add photo<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+        <button class="btn primary" type="submit">Report issue</button>
+      </form>`:'<div class="empty">Add a production zone or receive a batch before reporting a plant-health issue.</div>'}
+      <div class="issue-list">${data.issues.length?data.issues.map(issue=>{
+        const updates=[...(issue.plant_health_issue_updates||[])].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+        const subject=[issue.batch?.plant_catalog?.common_name,issue.batch?.batch_code,issue.location?.name].filter(Boolean).join(' · ')||'Greenhouse';
+        return `<article class="issue-card severity-${issue.severity}"><div class="issue-card-top"><div><div class="issue-badges"><span class="status-badge status-${issue.status}">${esc(label(issue.status))}</span><span class="severity-badge">${esc(label(issue.severity))} severity</span></div><h3>${esc(issue.title)}</h3><p>${esc(label(issue.issue_type))} · ${esc(subject)} · reported by ${esc(issue.reporter?.display_name||'Staff')} ${new Date(issue.created_at).toLocaleString()}</p></div>${issue.photo_path?'<span class="photo-attached">Photo attached</span>':''}</div>${issue.description?`<div class="issue-description-text">${esc(issue.description)}</div>`:''}
+          <div class="issue-history">${updates.slice(0,3).map(update=>`<div><strong>${esc(label(update.status))}</strong><span>${esc(update.note)}</span><small>${esc(update.author?.display_name||'Staff')} · ${new Date(update.created_at).toLocaleString()}</small></div>`).join('')}</div>
+          <form class="issue-update-form" onsubmit="CloudLedger.updateIssue(event,'${issue.id}')"><select name="status"><option value="open" ${issue.status==='open'?'selected':''}>Open</option><option value="monitoring" ${issue.status==='monitoring'?'selected':''}>Monitoring</option><option value="resolved" ${issue.status==='resolved'?'selected':''}>Resolved</option></select><input name="note" minlength="2" maxlength="2000" placeholder="Add treatment or follow-up note" required><button class="btn ${issue.status==='resolved'?'':'primary'} small" type="submit">Save follow-up</button></form></article>`;
+      }).join(''):'<div class="empty">No plant-health issues reported.</div>'}</div>
       <div class="section-label">Create care task</div>
       <form class="ops-form" onsubmit="CloudLedger.addTask(event)"><label>Title<input name="title" required placeholder="Water House 1"></label><label>Type<select name="task_type"><option>watering</option><option>feeding</option><option>inspection</option><option>repotting</option><option>pest_control</option><option>other</option></select></label><label>Due<input name="due_at" type="datetime-local" required></label><label>Assign<select name="assigned_to">${memberOptions}</select></label><label>Location<select name="location_id"><option value="">Any location</option>${data.locations.map(l=>option(l.id,l.name)).join('')}</select></label><label>Repeat days<input name="recurrence_days" type="number" min="1" placeholder="optional"></label><label>Notes<input name="notes"></label><button class="btn primary">Create task</button></form>
       <div class="section-label">Care queue</div>${open.length?open.map(t=>`<div class="today-item"><div><strong>${esc(t.title)}</strong><div class="today-space">${esc(t.location?.name||'All locations')} · ${t.due_at?new Date(t.due_at).toLocaleString():'No due date'} · ${esc(t.assignee?.display_name||'Unassigned')}${t.recurrence_days?` · repeats ${t.recurrence_days}d`:''}</div></div><button class="btn primary small" onclick="CloudLedger.completeTask('${t.id}')">Complete</button></div>`).join(''):'<div class="empty">No open care tasks.</div>'}
@@ -234,6 +255,23 @@
   async function finalizeCount(id){if(!confirm('Approve this count and adjust the ledger to the physical quantities?'))return;const {error}=await client().rpc('finalize_inventory_count',{target_count_id:id});if(error)return showToast(error.message);await refresh('Physical count approved and inventory adjusted');}
   async function cancelCount(id){if(!confirm('Cancel this physical count? No inventory quantities will change.'))return;const {error}=await client().rpc('cancel_inventory_count',{target_count_id:id});if(error)return showToast(error.message);await refresh('Physical count cancelled');}
 
+  async function reportIssue(event){
+    event.preventDefault(); const form=new FormData(event.currentTarget); const batchId=form.get('batch_id')||null; const locationId=form.get('location_id')||null;
+    if(!batchId&&!locationId)return showToast('Choose a batch or production zone');
+    const {data:issueId,error}=await client().rpc('report_plant_health_issue',{target_organization_id:organizationId(),target_batch_id:batchId,target_location_id:locationId,target_issue_type:form.get('issue_type'),target_severity:form.get('severity'),target_title:String(form.get('title')).trim(),target_description:String(form.get('description')||'').trim()||null});
+    if(error)return showToast(error.message);
+    const file=form.get('photo');
+    if(file?.size){
+      const path=`${organizationId()}/issues/${issueId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;
+      const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);
+      if(uploaded.error){await refresh('Issue saved, but the photo could not be uploaded');return;}
+      const attached=await client().rpc('set_plant_health_issue_photo',{target_issue_id:issueId,target_photo_path:path});
+      if(attached.error){await client().storage.from('greenhouse-photos').remove([path]);await refresh('Issue saved, but the photo could not be attached');return;}
+    }
+    await refresh('Plant-health issue reported');
+  }
+  async function updateIssue(event,id){event.preventDefault();const form=new FormData(event.currentTarget);const {error}=await client().rpc('update_plant_health_issue',{target_issue_id:id,target_status:form.get('status'),update_note:String(form.get('note')).trim()});if(error)return showToast(error.message);await refresh(form.get('status')==='resolved'?'Plant-health issue resolved':'Plant-health follow-up saved');}
+
   async function addTask(event){event.preventDefault();const f=new FormData(event.currentTarget);const payload={organization_id:organizationId(),title:String(f.get('title')).trim(),task_type:f.get('task_type'),due_at:new Date(f.get('due_at')).toISOString(),assigned_to:f.get('assigned_to')||null,location_id:f.get('location_id')||null,recurrence_days:f.get('recurrence_days')?Number(f.get('recurrence_days')):null,notes:String(f.get('notes')||'').trim()||null};const {error}=await client().from('care_tasks').insert(payload);if(error)return showToast(error.message);await refresh('Care task created');}
   async function completeTask(id){const {error}=await client().rpc('complete_care_task',{target_task_id:id});if(error)return showToast(error.message);await refresh('Task completed');}
   async function seedDemo(){
@@ -250,5 +288,5 @@
   async function replaceInvite(id){const original=data.invitations.find(i=>i.id===id);if(!original)return;const {data:replacement,error}=await client().from('organization_invitations').insert({organization_id:organizationId(),email:original.email,role:original.role}).select().single();if(error)return showToast(error.message);await refresh('Replacement invitation created');await copyInvite(replacement.code);}
   async function uploadBatchPhoto(event,batchId){const file=event.target.files[0];if(!file)return;const path=`${organizationId()}/batches/${batchId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);if(uploaded.error)return showToast(uploaded.error.message);const {error}=await client().from('inventory_batches').update({photo_path:path}).eq('id',batchId);if(error)return showToast(error.message);await refresh('Batch photo uploaded');}
 
-  window.CloudLedger={load,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,setInventoryTool,addBulkRow,bulkReceive,startCount,saveCountLine,finalizeCount,cancelCount,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,uploadBatchPhoto,getData:()=>data};
+  window.CloudLedger={load,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,setInventoryTool,addBulkRow,bulkReceive,startCount,saveCountLine,finalizeCount,cancelCount,reportIssue,updateIssue,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,uploadBatchPhoto,getData:()=>data};
 })();
