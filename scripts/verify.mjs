@@ -41,6 +41,7 @@ const onboardingMigration = read('supabase/migrations/20260812173000_phase_14_pi
 const visualCatalogMigration = read('supabase/migrations/20260812184500_phase_15_visual_catalog.sql');
 const stockCountMigration = read('supabase/migrations/20260812200000_phase_16_bulk_receiving_stock_counts.sql');
 const stockCountHardeningMigration = read('supabase/migrations/20260812203000_harden_phase_16_count_access.sql');
+const plantHealthMigration = read('supabase/migrations/20260812213000_phase_17_plant_health_issues.sql');
 const catalogOnboarding = read('catalog-onboarding.js');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
@@ -124,6 +125,22 @@ if (!/Bulk receiving/.test(cloudLedger) || !/Physical stock count/.test(cloudLed
   fail('Phase 16 staff and location foreign keys must have covering indexes');
 } else {
   pass('Bulk receiving and physical stock counts are atomic, auditable, and approval-controlled');
+}
+
+if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.test(cloudLedger) || !/Save follow-up/.test(cloudLedger)) {
+  fail('Phase 17 must provide plant-health reporting, status tracking, and follow-up notes');
+} else if (!/batch_id is not null or location_id is not null/.test(plantHealthMigration) || !/Choose a batch or production zone/.test(plantHealthMigration)) {
+  fail('Plant-health issues must be attached to an organization-owned batch or production zone');
+} else if (!/revoke all on table public\.plant_health_issues, public\.plant_health_issue_updates from public, anon, authenticated/.test(plantHealthMigration) || !/grant select on table public\.plant_health_issues, public\.plant_health_issue_updates to authenticated/.test(plantHealthMigration)) {
+  fail('Plant-health tables must be explicitly read-only through the Data API');
+} else if ((plantHealthMigration.match(/security definer/g)||[]).length !== 3 || (plantHealthMigration.match(/Organization membership required/g)||[]).length !== 3) {
+  fail('Plant-health mutation functions must enforce membership internally');
+} else if (!/plant_health_issue_reported/.test(plantHealthMigration) || !/plant_health_issue_updated/.test(plantHealthMigration) || !/insert into public\.plant_health_issue_updates/.test(plantHealthMigration)) {
+  fail('Plant-health reports and follow-ups must preserve audit history');
+} else if (!/organizationId\(\)\}\/issues/.test(cloudLedger) || !/Photo path must belong to this issue/.test(plantHealthMigration)) {
+  fail('Issue photos must use the organization- and issue-scoped storage path');
+} else {
+  pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
 }
 
 const manifest = JSON.parse(read('manifest.webmanifest'));

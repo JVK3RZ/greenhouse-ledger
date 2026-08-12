@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v16-stock-counts';
+const CACHE_NAME = 'greenhouse-ledger-v17-plant-health';
 const APP_SHELL = [
   './',
   './index.html',
