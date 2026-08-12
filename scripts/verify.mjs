@@ -42,6 +42,8 @@ const visualCatalogMigration = read('supabase/migrations/20260812184500_phase_15
 const stockCountMigration = read('supabase/migrations/20260812200000_phase_16_bulk_receiving_stock_counts.sql');
 const stockCountHardeningMigration = read('supabase/migrations/20260812203000_harden_phase_16_count_access.sql');
 const plantHealthMigration = read('supabase/migrations/20260812213000_phase_17_plant_health_issues.sql');
+const recoveryMigration = read('supabase/migrations/20260812230000_phase_18_backup_recovery.sql');
+const dataPortability = read('data-portability.js');
 const catalogOnboarding = read('catalog-onboarding.js');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
@@ -141,10 +143,26 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v17-form-containment/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
+}
+
+if (!/Data portability &amp; recovery/.test(dataPortability) || !/Recommended retention/.test(dataPortability) || !/Recover missing records/.test(dataPortability)) {
+  fail('Phase 18 must provide preview-first recovery and a visible retention policy');
+} else if (!/const VERSION=2/.test(dataPortability) || !/inventory_count_lines/.test(dataPortability) || !/plant_health_issue_updates/.test(dataPortability)) {
+  fail('Phase 18 backups must version and include Phase 16 and Phase 17 history');
+} else if (!/member\.role='owner'/.test(recoveryMigration) || !/Backup belongs to a different organization/.test(recoveryMigration)) {
+  fail('Backup recovery must be owner-only and restricted to the current organization');
+} else if ((recoveryMigration.match(/on conflict do nothing/g)||[]).length !== 9 || /on conflict[\s\S]{0,40}do update/i.test(recoveryMigration)) {
+  fail('Backup recovery must add missing records without overwriting live records');
+} else if (!/backup_recovery_completed/.test(recoveryMigration) || !/backup_recovery_runs/.test(recoveryMigration)) {
+  fail('Every completed recovery must leave an organization-scoped audit record');
+} else if (!/Memberships, invitations, activity logs/.test(dataPortability) || !/does not retain downloaded backup files/.test(dataPortability)) {
+  fail('Recovery exclusions and backup retention responsibility must be explicit');
+} else {
+  pass('Backup recovery is owner-controlled, additive, auditable, and covers current operational history');
 }
 
 const manifest = JSON.parse(read('manifest.webmanifest'));
