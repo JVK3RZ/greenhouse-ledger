@@ -46,18 +46,10 @@ alter table public.plant_health_issues enable row level security;
 alter table public.plant_health_issue_updates enable row level security;
 
 create policy plant_health_issues_member_select on public.plant_health_issues
-for select to authenticated using (exists (
-  select 1 from public.organization_members member
-  where member.organization_id = plant_health_issues.organization_id
-    and member.profile_id = (select auth.uid())
-));
+for select to authenticated using (private.is_organization_member(organization_id));
 
 create policy plant_health_issue_updates_member_select on public.plant_health_issue_updates
-for select to authenticated using (exists (
-  select 1 from public.organization_members member
-  where member.organization_id = plant_health_issue_updates.organization_id
-    and member.profile_id = (select auth.uid())
-));
+for select to authenticated using (private.is_organization_member(organization_id));
 
 revoke all on table public.plant_health_issues, public.plant_health_issue_updates from public, anon, authenticated;
 grant select on table public.plant_health_issues, public.plant_health_issue_updates to authenticated;
