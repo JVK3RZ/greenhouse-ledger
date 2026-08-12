@@ -96,9 +96,9 @@
         <div class="metric"><span>Locations</span><strong>${data.locations.length}</strong></div>
       </div>
       <div class="section-label">Receive inventory</div>
-      ${data.catalog.length&&data.locations.length?`
+      ${data.catalog.filter(item=>item.status!=='archived').length&&data.locations.length?`
         <form class="ops-form" onsubmit="CloudLedger.addBatch(event)">
-          <label>Plant<select name="plant_catalog_id" required>${data.catalog.map(item=>option(item.id,item.common_name+(item.cultivar?` · ${item.cultivar}`:''))).join('')}</select></label>
+          <label>Product<select name="plant_catalog_id" required>${data.catalog.filter(item=>item.status!=='archived').map(item=>option(item.id,[item.common_name,item.container_size].filter(Boolean).join(' · '))).join('')}</select></label>
           <label>Location<select name="location_id" required>${data.locations.map(item=>option(item.id,item.name)).join('')}</select></label>
           <label>Quantity<input name="quantity" type="number" min="1" required></label>
           <label>Stage<select name="stage">${STAGES.map(stage=>option(stage,label(stage))).join('')}</select></label>
@@ -132,9 +132,9 @@
           <form class="stack-form" onsubmit="CloudLedger.addLocation(event)"><input name="name" placeholder="e.g. House 1 · Bench A" required><select name="location_type"><option>greenhouse</option><option>room</option><option>zone</option><option>bench</option><option>retail</option></select><input name="notes" placeholder="Notes (optional)"><button class="btn primary" type="submit">Add location</button></form>
           ${data.locations.map(location=>`<div class="mini-row"><span><strong>${esc(location.name)}</strong><small>${esc(label(location.location_type))}</small></span></div>`).join('')||'<div class="empty">No locations yet.</div>'}
         </section>
-        <section><div class="section-label">Plant catalog</div>
-          <form class="stack-form" onsubmit="CloudLedger.addCatalogPlant(event)"><input name="common_name" placeholder="Common name" required><input name="scientific_name" placeholder="Scientific name"><input name="cultivar" placeholder="Cultivar"><input name="sku" placeholder="SKU"><input name="default_price" type="number" min="0" step="0.01" placeholder="Default price"><div class="form-pair"><input name="watering_days" type="number" min="1" placeholder="Water days"><input name="feeding_days" type="number" min="1" placeholder="Feed days"></div><button class="btn primary" type="submit">Add catalog plant</button></form>
-          ${data.catalog.map(plant=>`<div class="mini-row"><span><strong>${esc(plant.common_name)}</strong><small>${esc([plant.scientific_name,plant.cultivar,plant.sku].filter(Boolean).join(' · ')||'No details')}</small></span><b>${money(plant.default_price)}</b></div>`).join('')||'<div class="empty">No catalog plants yet.</div>'}
+        <section><div class="section-label">Add one product</div>
+          <form class="stack-form catalog-manual-form" onsubmit="CloudLedger.addCatalogPlant(event)"><input name="common_name" placeholder="Common name — e.g. Golden Pothos" required><input name="scientific_name" placeholder="Scientific name (optional)"><input name="cultivar" placeholder="Cultivar (optional)"><input name="container_size" placeholder="Container size — e.g. 4-inch pot"><input name="sku" placeholder="Product code / SKU (optional)"><input name="default_price" type="number" min="0" step="0.01" placeholder="Default selling price"><div class="form-pair"><input name="watering_days" type="number" min="1" placeholder="Water every __ days"><input name="feeding_days" type="number" min="1" placeholder="Feed every __ days"></div><button class="btn primary" type="submit">Add product</button></form>
+          <p class="report-note">A SKU is simply the business's internal product code. It can be left blank.</p>
         </section>
       </div>`;
   }
@@ -171,7 +171,7 @@
   async function addCatalogPlant(event){
     event.preventDefault(); const form=new FormData(event.currentTarget);
     const number=name=>form.get(name)?Number(form.get(name)):null;
-    const payload={organization_id:organizationId(),common_name:String(form.get('common_name')).trim(),scientific_name:String(form.get('scientific_name')||'').trim()||null,cultivar:String(form.get('cultivar')||'').trim()||null,sku:String(form.get('sku')||'').trim()||null,default_price:number('default_price'),watering_days:number('watering_days'),feeding_days:number('feeding_days')};
+    const payload={organization_id:organizationId(),common_name:String(form.get('common_name')).trim(),scientific_name:String(form.get('scientific_name')||'').trim()||null,cultivar:String(form.get('cultivar')||'').trim()||null,container_size:String(form.get('container_size')||'').trim()||null,sku:String(form.get('sku')||'').trim()||null,default_price:number('default_price'),watering_days:number('watering_days'),feeding_days:number('feeding_days'),status:'active'};
     const {error}=await client().from('plant_catalog').insert(payload); if(error)return showToast(error.message); await refresh('Catalog plant added');
   }
   async function addBatch(event){

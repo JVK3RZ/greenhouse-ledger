@@ -1,146 +1,43 @@
 (function(){
   const MAX_ROWS=500;
-  const REQUIRED='common_name';
-  const columns=['common_name','scientific_name','cultivar','sku','default_price','watering_days','feeding_days'];
-
-  function csvCell(value){
-    const text=String(value==null?'':value);
-    return '"' + text.replaceAll('"','""') + '"';
-  }
+  const columns=['common_name','scientific_name','cultivar','container_size','sku','default_price','watering_days','feeding_days','status'];
+  const starters=[
+    {id:'pothos',icon:'🌿',category:'Houseplants',common_name:'Golden Pothos',scientific_name:'Epipremnum aureum',container_size:'4-inch pot',sku:'POT-GOLD-4',default_price:12,watering_days:7,feeding_days:30},
+    {id:'fern',icon:'🌱',category:'Ferns',common_name:'Boston Fern',scientific_name:'Nephrolepis exaltata',cultivar:'Bostoniensis',container_size:'6-inch pot',sku:'FERN-BOS-6',default_price:18,watering_days:3,feeding_days:21},
+    {id:'lavender',icon:'🪻',category:'Herbs',common_name:'English Lavender',scientific_name:'Lavandula angustifolia',cultivar:'Hidcote',container_size:'4-inch pot',sku:'LAV-HID-4',default_price:10,watering_days:6,feeding_days:30},
+    {id:'tomato',icon:'🍅',category:'Vegetable starts',common_name:'Tomato Start',scientific_name:'Solanum lycopersicum',container_size:'6-cell pack',sku:'VEG-TOM-6C',default_price:5.5,watering_days:2,feeding_days:14},
+    {id:'marigold',icon:'🌼',category:'Annual flowers',common_name:'French Marigold',scientific_name:'Tagetes patula',container_size:'6-cell pack',sku:'ANN-MAR-6C',default_price:4.5,watering_days:2,feeding_days:14},
+    {id:'echeveria',icon:'🪴',category:'Succulents',common_name:'Echeveria',scientific_name:'Echeveria spp.',container_size:'3-inch pot',sku:'SUC-ECH-3',default_price:8,watering_days:14,feeding_days:60}
+  ];
+  let selected=new Set();
+  const money=value=>value==null?'Price not set':WorkspaceSettings.money(value);
+  const csvCell=value=>'"'+String(value==null?'':value).replaceAll('"','""')+'"';
 
   function downloadTemplate(){
-    const rows=[
-      columns,
-      ['Golden Pothos','Epipremnum aureum','','POTHOS-GOLDEN','12.00','8','30'],
-      ['Monstera Thai Constellation','Monstera deliciosa','Thai Constellation','MON-THAI','74.00','9','30']
-    ];
-    const blob=new Blob(['\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
-    const url=URL.createObjectURL(blob);
-    const link=document.createElement('a');
-    link.href=url; link.download='greenhouse-ledger-catalog-template.csv'; link.click();
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
-    showToast('Catalog template downloaded');
+    const rows=[columns,['Golden Pothos','Epipremnum aureum','','4-inch pot','POT-GOLD-4','12.00','7','30','active'],['Boston Fern','Nephrolepis exaltata','Bostoniensis','6-inch pot','FERN-BOS-6','18.00','3','21','active']];
+    const blob=new Blob(['\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='greenhouse-ledger-plant-spreadsheet.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Spreadsheet template downloaded');
   }
-
-  function parseCsv(text){
-    const rows=[]; let row=[]; let cell=''; let quoted=false;
-    text=String(text||'').replace(/^\uFEFF/,'');
-    for(let i=0;i<text.length;i++){
-      const ch=text[i];
-      if(quoted){
-        if(ch==='"'&&text[i+1]==='"'){cell+='"';i++;}
-        else if(ch==='"'){quoted=false;}
-        else cell+=ch;
-      }else if(ch==='"'){quoted=true;}
-      else if(ch===','){row.push(cell);cell='';}
-      else if(ch==='\n'){row.push(cell.replace(/\r$/,''));rows.push(row);row=[];cell='';}
-      else cell+=ch;
-    }
-    if(quoted)throw new Error('The CSV contains an unclosed quoted field.');
-    if(cell.length||row.length){row.push(cell.replace(/\r$/,''));rows.push(row);}
-    return rows.filter(item=>item.some(value=>String(value).trim()));
-  }
-
-  function numberValue(value,label,rowNumber,integer){
-    const text=String(value||'').trim();
-    if(!text)return null;
-    const number=Number(text);
-    if(!Number.isFinite(number)||number<0||(integer&&!Number.isInteger(number))){
-      throw new Error(`Row ${rowNumber}: ${label} must be a non-negative ${integer?'whole number':'number'}.`);
-    }
-    return number;
-  }
-
+  function parseCsv(text){const rows=[];let row=[];let cell='';let quoted=false;text=String(text||'').replace(/^\uFEFF/,'');for(let i=0;i<text.length;i++){const ch=text[i];if(quoted){if(ch==='"'&&text[i+1]==='"'){cell+='"';i++;}else if(ch==='"')quoted=false;else cell+=ch;}else if(ch==='"')quoted=true;else if(ch===','){row.push(cell);cell='';}else if(ch==='\n'){row.push(cell.replace(/\r$/,''));rows.push(row);row=[];cell='';}else cell+=ch;}if(quoted)throw new Error('The spreadsheet contains an unfinished quoted cell.');if(cell.length||row.length){row.push(cell.replace(/\r$/,''));rows.push(row);}return rows.filter(item=>item.some(value=>String(value).trim()));}
+  function numberValue(value,label,row,integer){const text=String(value||'').trim();if(!text)return null;const number=Number(text);if(!Number.isFinite(number)||number<0||(integer&&!Number.isInteger(number)))throw new Error(`Row ${row}: ${label} must be a ${integer?'whole number':'number'} of zero or more.`);return number;}
   function validate(text){
-    const parsed=parseCsv(text);
-    if(parsed.length<2)throw new Error('Add at least one plant row below the header.');
-    if(parsed.length-1>MAX_ROWS)throw new Error(`Import no more than ${MAX_ROWS} plants at a time.`);
-    const headers=parsed[0].map(value=>String(value).trim().toLowerCase());
-    if(!headers.includes(REQUIRED))throw new Error('The CSV must include a common_name column.');
-    const unknown=headers.filter(header=>header&&!columns.includes(header));
-    if(unknown.length)throw new Error(`Unknown column${unknown.length===1?'':'s'}: ${unknown.join(', ')}.`);
-    const seenFileSkus=new Set();
-    const existingSkus=new Set(CloudLedger.getData().catalog.map(item=>String(item.sku||'').toLowerCase()).filter(Boolean));
-    return parsed.slice(1).map((values,index)=>{
-      const raw={};headers.forEach((header,column)=>{if(header)raw[header]=String(values[column]||'').trim();});
-      const rowNumber=index+2;
-      if(!raw.common_name)throw new Error(`Row ${rowNumber}: common_name is required.`);
-      if(raw.common_name.length>160)throw new Error(`Row ${rowNumber}: common_name is too long.`);
-      const sku=String(raw.sku||'').trim();
-      const normalized=sku.toLowerCase();
-      if(normalized&&seenFileSkus.has(normalized))throw new Error(`Row ${rowNumber}: SKU "${sku}" appears more than once in this file.`);
-      if(normalized&&existingSkus.has(normalized))throw new Error(`Row ${rowNumber}: SKU "${sku}" already exists in this organization.`);
-      if(normalized)seenFileSkus.add(normalized);
-      return {
-        organization_id:LedgerAuth.getContext().organization.id,
-        common_name:raw.common_name,
-        scientific_name:raw.scientific_name||null,
-        cultivar:raw.cultivar||null,
-        sku:sku||null,
-        default_price:numberValue(raw.default_price,'default_price',rowNumber,false),
-        watering_days:numberValue(raw.watering_days,'watering_days',rowNumber,true),
-        feeding_days:numberValue(raw.feeding_days,'feeding_days',rowNumber,true)
-      };
-    });
+    const parsed=parseCsv(text);if(parsed.length<2)throw new Error('Add at least one plant below the heading row.');if(parsed.length-1>MAX_ROWS)throw new Error(`Import no more than ${MAX_ROWS} plants at a time.`);const headers=parsed[0].map(value=>String(value).trim().toLowerCase());if(!headers.includes('common_name'))throw new Error('The spreadsheet needs a common_name column. Download our template for the correct headings.');const unknown=headers.filter(header=>header&&!columns.includes(header));if(unknown.length)throw new Error(`Unrecognized heading${unknown.length===1?'':'s'}: ${unknown.join(', ')}.`);const seen=new Set();const existing=new Set(CloudLedger.getData().catalog.map(item=>String(item.sku||'').toLowerCase()).filter(Boolean));
+    return parsed.slice(1).map((values,index)=>{const raw={};headers.forEach((header,column)=>{if(header)raw[header]=String(values[column]||'').trim();});const row=index+2;if(!raw.common_name)throw new Error(`Row ${row}: common_name is required.`);const sku=String(raw.sku||'').trim();const normalized=sku.toLowerCase();if(normalized&&(seen.has(normalized)||existing.has(normalized)))throw new Error(`Row ${row}: SKU “${sku}” is duplicated or already in this catalog.`);if(normalized)seen.add(normalized);const status=String(raw.status||'active').toLowerCase();if(!['active','archived'].includes(status))throw new Error(`Row ${row}: status must be active or archived.`);return {organization_id:LedgerAuth.getContext().organization.id,common_name:raw.common_name,scientific_name:raw.scientific_name||null,cultivar:raw.cultivar||null,container_size:raw.container_size||null,sku:sku||null,default_price:numberValue(raw.default_price,'price',row,false),watering_days:numberValue(raw.watering_days,'watering days',row,true),feeding_days:numberValue(raw.feeding_days,'feeding days',row,true),status};});
   }
 
-  function checklist(){
-    const data=CloudLedger.getData();
-    const items=[
-      {done:data.locations.length>0,label:'Add a growing location',detail:'Create a greenhouse, room, zone, bench, or retail area.'},
-      {done:data.catalog.length>0,label:'Build the plant catalog',detail:'Add plants manually or import an existing catalog from CSV.'},
-      {done:data.batches.length>0,label:'Receive the first inventory batch',detail:'Connect a catalog plant to a location and starting quantity.'},
-      {done:data.members.length>1,label:'Invite a staff member',detail:'Owners and managers can create time-limited invitation links.'}
-    ];
-    const complete=items.filter(item=>item.done).length;
-    return `<div class="section-label">Pilot setup</div>
-      <div class="card onboarding-card"><div class="card-top"><div><div class="plant-name">Workspace readiness</div><div class="plant-species">${complete} of ${items.length} setup steps complete</div></div><div class="stock-count">${Math.round(complete/items.length*100)}<small>percent</small></div></div>
-      <div class="setup-progress"><span style="width:${complete/items.length*100}%"></span></div>
-      ${items.map(item=>`<div class="setup-step ${item.done?'done':''}"><span class="setup-check">${item.done?'✓':'○'}</span><span><strong>${esc(item.label)}</strong><small>${esc(item.detail)}</small></span></div>`).join('')}</div>`;
-  }
+  function methodCards(){return `<div class="catalog-methods"><button onclick="CatalogOnboarding.focusManual()"><span>＋</span><strong>Add one plant</strong><small>Enter a product yourself</small></button><button onclick="CatalogOnboarding.openStarters()"><span>✦</span><strong>Choose starter plants</strong><small>Select common greenhouse products</small></button><button onclick="CatalogOnboarding.openImport()"><span>⇧</span><strong>Import spreadsheet</strong><small>Bring in an Excel or Sheets list</small></button></div>`;}
+  function starterPanel(){return `<section id="starter-panel" class="catalog-panel" hidden><div class="catalog-panel-head"><div><h3>Choose starter products</h3><p>Pick products that fit the business. Prices, sizes, and product codes can be changed afterward.</p></div><button class="btn ghost small" onclick="CatalogOnboarding.closePanels()">Close</button></div><div class="starter-grid">${starters.map(item=>`<button class="starter-card ${selected.has(item.id)?'selected':''}" onclick="CatalogOnboarding.toggleStarter('${item.id}')"><span class="starter-icon">${item.icon}</span><span><small>${esc(item.category)}</small><strong>${esc(item.common_name)}</strong><em>${esc(item.container_size)} · ${money(item.default_price)}</em></span><b>${selected.has(item.id)?'✓':'＋'}</b></button>`).join('')}</div><div class="catalog-panel-footer"><span>${selected.size} selected</span><button class="btn primary" ${selected.size?'':'disabled'} onclick="CatalogOnboarding.addStarters()">Add selected products</button></div></section>`;}
+  function importPanel(){return `<section id="import-panel" class="catalog-panel" hidden><div class="catalog-panel-head"><div><h3>Import a plant spreadsheet</h3><p>A CSV is a simple spreadsheet file that Excel and Google Sheets can save. Download our example, replace its sample rows, then choose the saved file here.</p></div><button class="btn ghost small" onclick="CatalogOnboarding.closePanels()">Close</button></div><div class="spreadsheet-steps"><span><b>1</b>Download example</span><span><b>2</b>Edit in Excel or Sheets</span><span><b>3</b>Choose the saved file</span></div><div class="card-actions"><button class="btn" onclick="CatalogOnboarding.downloadTemplate()">Download example spreadsheet</button><label class="btn primary photo-label">Choose spreadsheet<input type="file" accept=".csv,text/csv" onchange="CatalogOnboarding.chooseFile(event)"></label></div><div id="catalog-import-preview" class="import-preview"></div></section>`;}
+  function catalogCards(){const catalog=CloudLedger.getData().catalog;return `<div class="catalog-summary"><span><strong>${catalog.filter(item=>item.status!=='archived').length}</strong> active products</span><span><strong>${catalog.filter(item=>item.status==='archived').length}</strong> archived</span></div><div class="catalog-grid">${catalog.map(item=>`<article class="catalog-product ${item.status==='archived'?'archived':''}"><div class="catalog-product-icon">${item.status==='archived'?'◌':'🌿'}</div><div class="catalog-product-main"><div class="catalog-product-top"><span class="status-badge status-${item.status==='archived'?'revoked':'accepted'}">${item.status==='archived'?'Archived':'Active'}</span><strong>${money(item.default_price)}</strong></div><h3>${esc(item.common_name)}</h3><p>${esc([item.scientific_name,item.cultivar].filter(Boolean).join(' · ')||'Scientific details optional')}</p><div class="product-facts"><span>${esc(item.container_size||'Size not set')}</span><span>${esc(item.sku||'No product code')}</span></div><button class="btn ghost small" onclick="CatalogOnboarding.toggleStatus('${item.id}','${item.status==='archived'?'active':'archived'}')">${item.status==='archived'?'Restore product':'Archive product'}</button></div></article>`).join('')||'<div class="empty catalog-empty"><strong>No catalog products yet.</strong><span>Choose starter plants, add one yourself, or import an existing spreadsheet.</span></div>'}</div>`;}
+  function render(){return `<div class="catalog-intro"><div class="eyebrow">Product catalog</div><h2>What does this greenhouse sell?</h2><p>Create each sellable product once, then use it when receiving inventory. The same plant can have separate products for a 4-inch pot, 6-inch pot, or hanging basket.</p></div>${methodCards()}${starterPanel()}${importPanel()}<div class="section-label">Catalog products</div>${catalogCards()}`;}
 
-  function importer(){
-    return `<div class="section-label">Bulk catalog import</div>
-      <div class="card">
-        <p class="sub">Bring an existing plant catalog into this organization from a CSV file. The file is validated before anything is saved, and the complete import succeeds or fails together.</p>
-        <div class="card-actions"><button class="btn" type="button" onclick="CatalogOnboarding.downloadTemplate()">Download CSV template</button><label class="btn primary photo-label">Choose catalog CSV<input type="file" accept=".csv,text/csv" onchange="CatalogOnboarding.chooseFile(event)"></label></div>
-        <div id="catalog-import-preview" class="import-preview"></div>
-      </div>`;
-  }
-
-  async function chooseFile(event){
-    const file=event.target.files[0]; if(!file)return;
-    const preview=document.getElementById('catalog-import-preview');
-    try{
-      const rows=validate(await file.text());
-      window.CatalogOnboarding.pending=rows;
-      preview.innerHTML=`<div class="sync-notice"><strong>${rows.length} plant${rows.length===1?'':'s'} ready.</strong> Review the first entries below, then import them into ${esc(LedgerAuth.getContext().organization.name)}.</div>
-        <div class="import-list">${rows.slice(0,5).map(row=>`<div class="mini-row"><span><strong>${esc(row.common_name)}</strong><small>${esc([row.scientific_name,row.cultivar,row.sku].filter(Boolean).join(' · ')||'No optional details')}</small></span></div>`).join('')}</div>
-        ${rows.length>5?`<p class="report-note">Plus ${rows.length-5} more rows.</p>`:''}
-        <button class="btn primary" type="button" onclick="CatalogOnboarding.commit()">Import ${rows.length} plants</button>`;
-    }catch(error){
-      window.CatalogOnboarding.pending=null;
-      preview.innerHTML=`<div class="sync-notice"><strong>Import needs attention.</strong> ${esc(error.message)}</div>`;
-    }
-    event.target.value='';
-  }
-
-  async function commit(){
-    const rows=window.CatalogOnboarding.pending;
-    if(!rows||!rows.length)return;
-    const button=document.querySelector('#catalog-import-preview button.primary');
-    if(button){button.disabled=true;button.textContent='Importing…';}
-    const {error}=await LedgerAuth.client.from('plant_catalog').insert(rows);
-    if(error){showToast(error.message);if(button){button.disabled=false;button.textContent='Try import again';}return;}
-    window.CatalogOnboarding.pending=null;
-    await CloudLedger.load();
-    render();
-    showToast(`${rows.length} catalog plants imported`);
-  }
-
-  const original=CloudLedger.renderSetup;
-  CloudLedger.renderSetup=()=>`<style>
-    .setup-progress{height:7px;background:var(--soil-2);border-radius:10px;overflow:hidden;margin:14px 0}.setup-progress span{display:block;height:100%;background:var(--moss-light)}.setup-step{display:flex;gap:10px;padding:9px 0;border-top:1px solid var(--line);color:var(--ink-dim)}.setup-step.done{color:var(--ink)}.setup-check{color:var(--moss-light);font-size:18px;line-height:1}.setup-step small{display:block;margin-top:3px;color:var(--ink-dim)}.import-preview{margin-top:14px}.import-list{margin-bottom:12px}
-  </style>${checklist()}${importer()}${original()}`;
-  window.CatalogOnboarding={pending:null,downloadTemplate,chooseFile,commit};
+  function closePanels(){document.querySelectorAll('.catalog-panel').forEach(panel=>panel.hidden=true);}
+  function showPanel(id){closePanels();const panel=document.getElementById(id);if(panel){panel.hidden=false;panel.scrollIntoView({behavior:'smooth',block:'nearest'});}}
+  function openStarters(){showPanel('starter-panel');}function openImport(){showPanel('import-panel');}
+  function focusManual(){const input=document.querySelector('[name="common_name"]');if(input){input.focus();input.scrollIntoView({behavior:'smooth',block:'center'});}}
+  function toggleStarter(id){selected.has(id)?selected.delete(id):selected.add(id);render();setTimeout(openStarters);}
+  async function addStarters(){const existing=new Set(CloudLedger.getData().catalog.map(item=>String(item.sku||'').toLowerCase()).filter(Boolean));const rows=starters.filter(item=>selected.has(item.id)&&!existing.has(item.sku.toLowerCase())).map(({id,icon,category,...item})=>({...item,organization_id:LedgerAuth.getContext().organization.id,status:'active'}));if(!rows.length)return showToast('Those starter products are already in the catalog');const {error}=await LedgerAuth.client.from('plant_catalog').insert(rows);if(error)return showToast(error.message);selected.clear();await CloudLedger.load();render();showToast(`${rows.length} starter product${rows.length===1?'':'s'} added`);}
+  async function chooseFile(event){const file=event.target.files[0];if(!file)return;const preview=document.getElementById('catalog-import-preview');try{const rows=validate(await file.text());window.CatalogOnboarding.pending=rows;preview.innerHTML=`<div class="sync-notice"><strong>${rows.length} product${rows.length===1?'':'s'} ready.</strong> Nothing has been saved yet.</div><div class="import-list">${rows.slice(0,5).map(row=>`<div class="mini-row"><span><strong>${esc(row.common_name)}</strong><small>${esc([row.container_size,row.sku].filter(Boolean).join(' · ')||'Optional details not set')}</small></span><b>${money(row.default_price)}</b></div>`).join('')}</div>${rows.length>5?`<p class="report-note">Plus ${rows.length-5} more.</p>`:''}<button class="btn primary" onclick="CatalogOnboarding.commit()">Import ${rows.length} products</button>`;}catch(error){window.CatalogOnboarding.pending=null;preview.innerHTML=`<div class="sync-notice"><strong>Spreadsheet needs attention.</strong> ${esc(error.message)}</div>`;}event.target.value='';}
+  async function commit(){const rows=window.CatalogOnboarding.pending;if(!rows?.length)return;const {error}=await LedgerAuth.client.from('plant_catalog').insert(rows);if(error)return showToast(error.message);window.CatalogOnboarding.pending=null;await CloudLedger.load();render();showToast(`${rows.length} catalog products imported`);}
+  async function toggleStatus(id,status){const {error}=await LedgerAuth.client.from('plant_catalog').update({status}).eq('id',id);if(error)return showToast(error.message);await CloudLedger.load();render();showToast(status==='archived'?'Product archived':'Product restored');}
+  window.CatalogOnboarding={pending:null,render,downloadTemplate,chooseFile,commit,openStarters,openImport,closePanels,focusManual,toggleStarter,addStarters,toggleStatus};
 })();
