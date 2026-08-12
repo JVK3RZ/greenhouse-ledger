@@ -8,6 +8,33 @@
   const label = value => String(value||'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
   const option = (value,text) => `<option value="${esc(value)}">${esc(text)}</option>`;
 
+  function onboardingState(){
+    const role=LedgerAuth.getContext().role;
+    const steps=[
+      {done:data.locations.length>0,label:'Create a production zone',tab:'setup'},
+      {done:data.catalog.length>0,label:'Add a plant to the catalog',tab:'setup'},
+      {done:data.batches.length>0,label:'Receive the first inventory batch',tab:'inventory'},
+      {done:data.tasks.length>0,label:'Schedule the first care task',tab:'operations'},
+      {done:data.members.length>1||data.invitations.length>0,label:'Invite a manager or worker',tab:'team'}
+    ];
+    return {role,steps,completed:steps.filter(step=>step.done).length};
+  }
+
+  function renderOwnerOnboarding(){
+    const onboarding=onboardingState();
+    if(onboarding.role!=='owner'||onboarding.completed===onboarding.steps.length)return '';
+    const isEmpty=!data.locations.length&&!data.catalog.length&&!data.batches.length&&!data.tasks.length;
+    return `<section class="onboarding-card"><div class="onboarding-head"><div><div class="eyebrow">Owner setup</div><h2>Prepare ${esc(LedgerAuth.getContext().organization.name)} for its first shift</h2><p>${onboarding.completed} of ${onboarding.steps.length} essentials complete</p></div><strong>${Math.round(onboarding.completed/onboarding.steps.length*100)}%</strong></div><div class="progress-track"><span style="width:${onboarding.completed/onboarding.steps.length*100}%"></span></div><div class="onboarding-steps">${onboarding.steps.map(step=>`<button class="onboarding-step ${step.done?'done':''}" ${step.done?'disabled':`onclick="setTab('${step.tab}')"`}><span>${step.done?'✓':'○'}</span>${esc(step.label)}</button>`).join('')}</div>${isEmpty?`<div class="demo-callout"><div><strong>Need something realistic to demonstrate?</strong><p>Load a small sample greenhouse with zones, plants, inventory, and care work. This is only available while the workspace is empty.</p></div><button class="btn primary" onclick="CloudLedger.seedDemo()">Load demo greenhouse</button></div>`:''}</section>`;
+  }
+
+  function renderMemberWelcome(){
+    const context=LedgerAuth.getContext();
+    const key=`greenhouse-ledger-welcome-${context.organization.id}-${context.profile.id}`;
+    if(context.role==='owner'||localStorage.getItem(key)==='dismissed')return '';
+    const accepted=context.acceptedInvitation;
+    return `<section class="welcome-card"><button class="welcome-close" aria-label="Dismiss welcome" onclick="CloudLedger.dismissWelcome('${key}')">×</button><div class="eyebrow">${accepted?'Invitation accepted':'Team workspace'}</div><h2>${accepted?`Welcome to ${esc(accepted.organizationName)}`:`Welcome back to ${esc(context.organization.name)}`}</h2><p>You are signed in as a <strong>${esc(label(context.role))}</strong>. ${context.role==='worker'?'Start in Operations to review assigned work, then record completion from the care queue.':'You can manage daily operations, inventory, and staff invitations without changing organization ownership.'}</p><button class="btn primary small" onclick="setTab('operations')">View assigned work</button></section>`;
+  }
+
   async function load(){
     data.loading=true; data.error=null;
     const org=organizationId();
@@ -47,6 +74,7 @@
     const units=data.batches.reduce((sum,batch)=>sum+Number(batch.quantity||0),0);
     const nextTasks=[...open].sort((a,b)=>new Date(a.due_at||'9999-12-31')-new Date(b.due_at||'9999-12-31')).slice(0,6);
     return `${data.error?`<div class="sync-notice ${data.offline?'offline':''}">${esc(data.error)}</div>`:''}
+      ${renderMemberWelcome()}${renderOwnerOnboarding()}
       <div class="metric-grid"><div class="metric"><span>Units on hand</span><strong>${units}</strong></div><div class="metric"><span>Production zones</span><strong>${data.locations.length}</strong></div><div class="metric"><span>Open tasks</span><strong>${open.length}</strong></div><div class="metric"><span>Overdue</span><strong>${overdue.length}</strong></div></div>
       ${low.length?`<div class="sync-notice offline"><strong>Low stock:</strong> ${low.map(batch=>esc(`${batch.plant_catalog?.common_name||'Unknown'} (${batch.quantity})`)).join(' · ')}</div>`:''}
       <div class="section-label">Next work</div>
@@ -158,6 +186,13 @@
 
   async function addTask(event){event.preventDefault();const f=new FormData(event.currentTarget);const payload={organization_id:organizationId(),title:String(f.get('title')).trim(),task_type:f.get('task_type'),due_at:new Date(f.get('due_at')).toISOString(),assigned_to:f.get('assigned_to')||null,location_id:f.get('location_id')||null,recurrence_days:f.get('recurrence_days')?Number(f.get('recurrence_days')):null,notes:String(f.get('notes')||'').trim()||null};const {error}=await client().from('care_tasks').insert(payload);if(error)return showToast(error.message);await refresh('Care task created');}
   async function completeTask(id){const {error}=await client().rpc('complete_care_task',{target_task_id:id});if(error)return showToast(error.message);await refresh('Task completed');}
+  async function seedDemo(){
+    if(!confirm('Load sample greenhouse data into this empty workspace?'))return;
+    const {error}=await client().rpc('seed_demo_organization',{target_organization_id:organizationId()});
+    if(error)return showToast(error.message);
+    await refresh('Demo greenhouse loaded');
+  }
+  function dismissWelcome(key){localStorage.setItem(key,'dismissed');render();}
   async function inviteStaff(event){event.preventDefault();const f=new FormData(event.currentTarget);const payload={organization_id:organizationId(),email:String(f.get('email')).trim().toLowerCase(),role:f.get('role')};const {data:invitation,error}=await client().from('organization_invitations').insert(payload).select().single();if(error)return showToast(error.message);if(f.get('delivery')==='email')await sendInvite(invitation.id);else{await refresh('Invitation link created');await copyInvite(invitation.code);}}
   async function copyInvite(code){const url=new URL(location.href);url.searchParams.set('invite',code);await navigator.clipboard.writeText(url.toString());showToast('Invitation link copied');}
   async function sendInvite(id,refreshAfter=true){const {data:{session}}=await client().auth.getSession();const response=await fetch(`${window.GREENHOUSE_SUPABASE.url}/functions/v1/send-organization-invitation`,{method:'POST',headers:{'Content-Type':'application/json','apikey':window.GREENHOUSE_SUPABASE.publishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({invitation_id:id})});const payload=await response.json().catch(()=>({}));if(!response.ok){showToast(payload.error||'Email delivery is not configured yet. Copy the invitation link instead.');if(refreshAfter)await refresh();return;}await refresh('Invitation email sent');}
@@ -165,5 +200,5 @@
   async function replaceInvite(id){const original=data.invitations.find(i=>i.id===id);if(!original)return;const {data:replacement,error}=await client().from('organization_invitations').insert({organization_id:organizationId(),email:original.email,role:original.role}).select().single();if(error)return showToast(error.message);await refresh('Replacement invitation created');await copyInvite(replacement.code);}
   async function uploadBatchPhoto(event,batchId){const file=event.target.files[0];if(!file)return;const path=`${organizationId()}/batches/${batchId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);if(uploaded.error)return showToast(uploaded.error.message);const {error}=await client().from('inventory_batches').update({photo_path:path}).eq('id',batchId);if(error)return showToast(error.message);await refresh('Batch photo uploaded');}
 
-  window.CloudLedger={load,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,addTask,completeTask,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,uploadBatchPhoto,getData:()=>data};
+  window.CloudLedger={load,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,uploadBatchPhoto,getData:()=>data};
 })();

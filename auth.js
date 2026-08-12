@@ -18,6 +18,7 @@
   let context = null;
   let onReady = null;
   let invitationPreview = null;
+  let acceptedInvitation = null;
 
   function escapeHtml(value){
     return String(value).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -27,7 +28,7 @@
     const signingUp = mode === 'signup';
     const rememberedLogin = rememberSession ? localStorage.getItem(LOGIN_KEY) || '' : '';
     const inviteEmail = invitationPreview?.email || '';
-    const invitePanel = invitationPreview?`<div class="invitation-welcome"><div class="eyebrow">Staff invitation</div><h2>Join ${escapeHtml(invitationPreview.organization_name)}</h2><p>You were invited as <strong>${escapeHtml(invitationPreview.role)}</strong>. This single-use invitation is reserved for <strong>${escapeHtml(inviteEmail)}</strong> and expires ${new Date(invitationPreview.expires_at).toLocaleString()}.</p></div>`:'';
+    const invitePanel = invitationPreview?`<div class="invitation-welcome"><div class="eyebrow">Staff invitation</div><h2>Join ${escapeHtml(invitationPreview.organization_name)}</h2><div class="invitation-facts"><span><small>Role</small><strong>${escapeHtml(invitationPreview.role)}</strong></span><span><small>Reserved for</small><strong>${escapeHtml(inviteEmail)}</strong></span><span><small>Expires</small><strong>${new Date(invitationPreview.expires_at).toLocaleDateString()}</strong></span></div><p>Sign in or create an account using the email shown above. Greenhouse Ledger will confirm the match before adding you to the team.</p></div>`:'';
     return `<div class="auth-shell"><div class="auth-card">
       ${invitePanel}
       <div class="eyebrow">Greenhouse operations</div>
@@ -107,6 +108,7 @@
     if(!session){ context=null; renderAuth(); return; }
     const invitationCode = new URL(location.href).searchParams.get('invite');
     if(invitationCode){
+      acceptedInvitation=invitationPreview?{organizationName:invitationPreview.organization_name,role:invitationPreview.role}:null;
       const accepted = await client.rpc('accept_organization_invitation',{invitation_code:invitationCode});
       if(accepted.error){ renderAuth('signin',accepted.error.message); return; }
       const cleanUrl=new URL(location.href); cleanUrl.searchParams.delete('invite'); history.replaceState({},'',cleanUrl);
@@ -120,7 +122,7 @@
       .eq('profile_id',session.user.id).limit(1);
     if(error){ renderAuth('signin',error.message); return; }
     if(!memberships.length){ renderOrganization(); return; }
-    context = {session,profile:{...session.user,...profileResult.data},organization:memberships[0].organization,role:memberships[0].role};
+    context = {session,profile:{...session.user,...profileResult.data},organization:memberships[0].organization,role:memberships[0].role,acceptedInvitation};
     onReady(context);
   }
 
