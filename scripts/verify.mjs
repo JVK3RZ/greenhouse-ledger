@@ -40,6 +40,7 @@ const memberRepairMigration = read('supabase/migrations/20260812161500_prevent_i
 const onboardingMigration = read('supabase/migrations/20260812173000_phase_14_pilot_onboarding.sql');
 const visualCatalogMigration = read('supabase/migrations/20260812184500_phase_15_visual_catalog.sql');
 const stockCountMigration = read('supabase/migrations/20260812200000_phase_16_bulk_receiving_stock_counts.sql');
+const stockCountHardeningMigration = read('supabase/migrations/20260812203000_harden_phase_16_count_access.sql');
 const catalogOnboarding = read('catalog-onboarding.js');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
@@ -117,6 +118,10 @@ if (!/Bulk receiving/.test(cloudLedger) || !/Physical stock count/.test(cloudLed
   fail('Physical stock counts must be complete and manager-approved before quantities change');
 } else if (!/Bulk receipt must contain between 1 and 100 items/.test(stockCountMigration) || !/inventory_count_completed/.test(stockCountMigration)) {
   fail('Bulk receiving must be bounded and completed counts must leave an activity record');
+} else if (!/revoke all on table public\.inventory_counts, public\.inventory_count_lines from public, anon, authenticated/.test(stockCountHardeningMigration) || !/grant select on table public\.inventory_counts, public\.inventory_count_lines to authenticated/.test(stockCountHardeningMigration)) {
+  fail('Physical count tables must be explicitly read-only through the Data API');
+} else if ((stockCountHardeningMigration.match(/create index inventory_count/g)||[]).length !== 5) {
+  fail('Phase 16 staff and location foreign keys must have covering indexes');
 } else {
   pass('Bulk receiving and physical stock counts are atomic, auditable, and approval-controlled');
 }
