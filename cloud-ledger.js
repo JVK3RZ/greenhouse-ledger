@@ -188,7 +188,7 @@
         <label>Title<input name="title" maxlength="120" placeholder="e.g. Aphids on lower leaves" required></label>
         <label>Type<select name="issue_type"><option value="pest">Pest</option><option value="disease">Disease</option><option value="damage">Damage</option><option value="environmental">Environmental</option><option value="other">Other</option></select></label>
         <label>Severity<select name="severity"><option value="low">Low</option><option value="moderate" selected>Moderate</option><option value="high">High</option><option value="critical">Critical</option></select></label>
-        <label>Batch<select name="batch_id"><option value="">No specific batch</option>${data.batches.map(b=>option(b.id,[b.plant_catalog?.common_name,b.batch_code,b.location?.name].filter(Boolean).join(' · '))).join('')}</select></label>
+        <label>Batch<select name="batch_id"><option value="">No specific batch</option>${data.batches.map(b=>option(b.id,[b.plant_catalog?.common_name,b.batch_code].filter(Boolean).join(' · '))).join('')}</select></label>
         <label>Production zone<select name="location_id"><option value="">No specific zone</option>${data.locations.map(l=>option(l.id,l.name)).join('')}</select></label>
         <label class="issue-description">What did you observe?<textarea name="description" maxlength="2000" rows="2" placeholder="Symptoms, affected area, and any immediate action"></textarea></label>
         <label class="btn small photo-label">Add photo<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>

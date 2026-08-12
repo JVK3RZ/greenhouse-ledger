@@ -141,6 +141,8 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
+} else if (!/greenhouse-ledger-v17-form-containment/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+  fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
 }
