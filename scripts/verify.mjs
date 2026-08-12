@@ -38,6 +38,8 @@ const cloudLedger = read('cloud-ledger.js');
 const invitationMigration = read('supabase/migrations/20260812150000_phase_13_team_invitations.sql');
 const memberRepairMigration = read('supabase/migrations/20260812161500_prevent_invitation_member_downgrades.sql');
 const onboardingMigration = read('supabase/migrations/20260812173000_phase_14_pilot_onboarding.sql');
+const visualCatalogMigration = read('supabase/migrations/20260812184500_phase_15_visual_catalog.sql');
+const catalogOnboarding = read('catalog-onboarding.js');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
 const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => match[1]).filter(path => path !== '');
@@ -92,6 +94,16 @@ if (!/Owner setup/.test(cloudLedger) || !/Load demo greenhouse/.test(cloudLedger
   fail('Demo greenhouse seeding must preserve caller RLS through security invoker');
 } else {
   pass('Pilot onboarding and demonstration data are role-aware and safely guarded');
+}
+
+if (!/Add one plant/.test(catalogOnboarding) || !/Choose starter plants/.test(catalogOnboarding) || !/Import spreadsheet/.test(catalogOnboarding)) {
+  fail('Phase 15 must offer three plain-language catalog setup paths');
+} else if (!/A CSV is a simple spreadsheet file/.test(catalogOnboarding) || !/container_size/.test(catalogOnboarding)) {
+  fail('Spreadsheet import must explain CSV and support sellable container sizes');
+} else if (!/status in \('active','archived'\)/.test(visualCatalogMigration) || !/filter\(item=>item\.status!==['"]archived['"]\)/.test(cloudLedger)) {
+  fail('Archived catalog products must remain stored but unavailable for new inventory');
+} else {
+  pass('Visual catalog setup, starter products, and spreadsheet import are approachable and lifecycle-aware');
 }
 
 const manifest = JSON.parse(read('manifest.webmanifest'));
