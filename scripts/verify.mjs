@@ -39,6 +39,8 @@ const invitationMigration = read('supabase/migrations/20260812150000_phase_13_te
 const memberRepairMigration = read('supabase/migrations/20260812161500_prevent_invitation_member_downgrades.sql');
 const onboardingMigration = read('supabase/migrations/20260812173000_phase_14_pilot_onboarding.sql');
 const visualCatalogMigration = read('supabase/migrations/20260812184500_phase_15_visual_catalog.sql');
+const stockCountMigration = read('supabase/migrations/20260812200000_phase_16_bulk_receiving_stock_counts.sql');
+const stockCountHardeningMigration = read('supabase/migrations/20260812203000_harden_phase_16_count_access.sql');
 const catalogOnboarding = read('catalog-onboarding.js');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
@@ -104,6 +106,24 @@ if (!/Add one plant/.test(catalogOnboarding) || !/Choose starter plants/.test(ca
   fail('Archived catalog products must remain stored but unavailable for new inventory');
 } else {
   pass('Visual catalog setup, starter products, and spreadsheet import are approachable and lifecycle-aware');
+}
+
+if (!/Bulk receiving/.test(cloudLedger) || !/Physical stock count/.test(cloudLedger) || !/Approve adjustments/.test(cloudLedger)) {
+  fail('Phase 16 must include bulk receiving and an approval-based physical count workflow');
+} else if ((stockCountMigration.match(/security definer/g)||[]).length !== 5 || !/revoke all on function public\.finalize_inventory_count/.test(stockCountMigration)) {
+  fail('Phase 16 mutation functions must be explicitly permissioned and keep count tables read-only to clients');
+} else if (!/profile_id = \(select auth\.uid\(\)\)/.test(stockCountMigration) || !/role in \('owner','manager'\)/.test(stockCountMigration)) {
+  fail('Phase 16 privileged functions must authenticate organization membership and approval roles internally');
+} else if (!/Every batch must be counted before approval/.test(stockCountMigration) || !/Owner or manager approval required/.test(stockCountMigration)) {
+  fail('Physical stock counts must be complete and manager-approved before quantities change');
+} else if (!/Bulk receipt must contain between 1 and 100 items/.test(stockCountMigration) || !/inventory_count_completed/.test(stockCountMigration)) {
+  fail('Bulk receiving must be bounded and completed counts must leave an activity record');
+} else if (!/revoke all on table public\.inventory_counts, public\.inventory_count_lines from public, anon, authenticated/.test(stockCountHardeningMigration) || !/grant select on table public\.inventory_counts, public\.inventory_count_lines to authenticated/.test(stockCountHardeningMigration)) {
+  fail('Physical count tables must be explicitly read-only through the Data API');
+} else if ((stockCountHardeningMigration.match(/create index inventory_count/g)||[]).length !== 5) {
+  fail('Phase 16 staff and location foreign keys must have covering indexes');
+} else {
+  pass('Bulk receiving and physical stock counts are atomic, auditable, and approval-controlled');
 }
 
 const manifest = JSON.parse(read('manifest.webmanifest'));

@@ -2,7 +2,7 @@
 
 Greenhouse Ledger is an installable, multi-tenant greenhouse inventory and operations platform.
 
-Current pilot release candidate: `1.5.0` (Phase 15).
+Current pilot release candidate: `1.6.0` (Phase 16).
 
 ## Open the app
 
@@ -45,6 +45,8 @@ Supabase authentication provides a private organization workspace. Users choose 
 The Settings menu centralizes account security and business preferences. Organization owners and managers can publish a shared logo and accessible color palette through Brand Studio. Logos remain in private, organization-scoped storage, and the interface can suggest colors locally from a raster logo without uploading it until the user publishes the branding.
 
 The first standalone account creates the organization and becomes its owner. Owners and managers use **Team & Invitations** to create single-use, seven-day, email-locked worker or manager invitations; they can send or resend branded email, copy the same invitation as a private link, view its lifecycle status, revoke it, or replace an expired invitation. Email delivery runs only from the protected `send-organization-invitation` Edge Function and requires `RESEND_API_KEY`, `INVITATION_FROM_EMAIL`, and `GREENHOUSE_LEDGER_SITE_URL` secrets. Link sharing remains available when email delivery is not configured.
+
+Inventory staff can receive several batches in one atomic bulk receipt and run location-specific or whole-workspace physical counts. Counted quantities remain separate from expected ledger quantities until an owner or manager approves the completed count; approved differences create inventory adjustments and activity history.
 
 New owners receive a five-step pilot setup checklist covering production zones, catalog, inventory, care work, and team access. An empty owner workspace can load a guarded sample greenhouse for demonstrations. Invited staff see their organization, role, reserved email, and expiration before accepting, followed by role-specific first-login guidance.
 
