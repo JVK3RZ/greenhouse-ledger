@@ -44,6 +44,8 @@ Supabase authentication provides a private organization workspace. Users choose 
 
 The Settings menu centralizes account security and business preferences. Organization owners and managers can publish a shared logo and accessible color palette through Brand Studio. Logos remain in private, organization-scoped storage, and the interface can suggest colors locally from a raster logo without uploading it until the user publishes the branding.
 
+The first standalone account creates the organization and becomes its owner. Owners and managers use **Team & Invitations** to create single-use, seven-day, email-locked worker or manager invitations; they can send or resend branded email, copy the same invitation as a private link, view its lifecycle status, revoke it, or replace an expired invitation. Email delivery runs only from the protected `send-organization-invitation` Edge Function and requires `RESEND_API_KEY`, `INVITATION_FROM_EMAIL`, and `GREENHOUSE_LEDGER_SITE_URL` secrets. Link sharing remains available when email delivery is not configured.
+
 Cloud workspace backups contain organization-scoped database records and may include staff names and invitation email addresses. Store exported JSON files securely. Database photo paths are included, but binary photo files are not embedded.
 
 ## Supabase
