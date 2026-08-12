@@ -37,6 +37,7 @@ const auth = read('auth.js');
 const cloudLedger = read('cloud-ledger.js');
 const invitationMigration = read('supabase/migrations/20260812150000_phase_13_team_invitations.sql');
 const memberRepairMigration = read('supabase/migrations/20260812161500_prevent_invitation_member_downgrades.sql');
+const onboardingMigration = read('supabase/migrations/20260812173000_phase_14_pilot_onboarding.sql');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
 const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => match[1]).filter(path => path !== '');
@@ -81,6 +82,16 @@ if (!/if\(error\)return showToast\(error\.message\)/.test(cloudLedger)) {
   fail('Invitation insertion must enforce duplicate-member protection in the database');
 } else {
   pass('Existing members cannot be invited, downgraded, or reassigned through invitations');
+}
+
+if (!/Owner setup/.test(cloudLedger) || !/Load demo greenhouse/.test(cloudLedger) || !/Invitation accepted/.test(cloudLedger)) {
+  fail('Phase 14 must include owner setup, guarded demo loading, and staff first-login guidance');
+} else if (!/member\.role = 'owner'/.test(onboardingMigration) || !/Demo data can only be loaded into an empty workspace/.test(onboardingMigration)) {
+  fail('Demo greenhouse seeding must be owner-only and limited to empty workspaces');
+} else if (!/security invoker/.test(onboardingMigration) || /security definer/.test(onboardingMigration)) {
+  fail('Demo greenhouse seeding must preserve caller RLS through security invoker');
+} else {
+  pass('Pilot onboarding and demonstration data are role-aware and safely guarded');
 }
 
 const manifest = JSON.parse(read('manifest.webmanifest'));
