@@ -1,6 +1,6 @@
 (function(){
   const FORMAT='greenhouse-ledger-cloud-backup';
-  const VERSION=1;
+  const VERSION=2;
   const PAGE_SIZE=500;
   const tables=[
     {key:'locations',name:'locations',order:'created_at'},
@@ -8,10 +8,16 @@
     {key:'inventory_batches',name:'inventory_batches',order:'created_at'},
     {key:'inventory_transactions',name:'inventory_transactions',order:'created_at'},
     {key:'care_tasks',name:'care_tasks',order:'created_at'},
+    {key:'inventory_counts',name:'inventory_counts',order:'started_at'},
+    {key:'inventory_count_lines',name:'inventory_count_lines',order:'created_at'},
+    {key:'plant_health_issues',name:'plant_health_issues',order:'created_at'},
+    {key:'plant_health_issue_updates',name:'plant_health_issue_updates',order:'created_at'},
     {key:'organization_members',name:'organization_members',order:'profile_id'},
     {key:'organization_invitations',name:'organization_invitations',order:'created_at'},
     {key:'activity_logs',name:'activity_logs',order:'created_at'}
   ];
+  const recoveryKeys=['locations','plant_catalog','inventory_batches','inventory_transactions','care_tasks','inventory_counts','inventory_count_lines','plant_health_issues','plant_health_issue_updates'];
+  let selectedBackup=null;
   const context=()=>LedgerAuth.getContext();
   const canManage=()=>['owner','manager'].includes(context()?.role);
   async function allRows(table){
@@ -41,7 +47,7 @@
     try{
       const data=Object.fromEntries(await Promise.all(tables.map(async table=>[table.key,await allRows(table)])));
       const organization={...context().organization};
-      const backup={format:FORMAT,version:VERSION,exported_at:new Date().toISOString(),organization,summary:counts(data),integrity:{algorithm:'SHA-256',checksum:await checksum(data)},data,notes:'Photo database paths are included; binary photo files are not embedded.'};
+      const backup={format:FORMAT,version:VERSION,exported_at:new Date().toISOString(),organization,summary:counts(data),integrity:{algorithm:'SHA-256',checksum:await checksum(data)},recovery:{mode:'additive',recoverable_sections:recoveryKeys,inspection_only_sections:['organization_members','organization_invitations','activity_logs']},data,notes:'Recovery adds missing operational records only. Existing records are never overwritten or deleted. Identity, invitation, and generated activity records are inspection-only. Photo database paths are included; binary photo files are not embedded.'};
       const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');
       const safe=String(organization.name||'workspace').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'workspace';
       link.href=url;link.download=`${safe}-cloud-backup-${new Date().toISOString().slice(0,10)}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Cloud workspace backup exported');
@@ -61,16 +67,28 @@
   async function inspect(event){
     const file=event.target.files[0];if(!file)return;const preview=document.getElementById('cloud-backup-preview');
     try{
-      const backup=await validate(file);const summary=counts(backup.data);
-      preview.innerHTML=`<div class="sync-notice"><strong>${backup.verified?'Integrity verified':'Structure verified'}.</strong> ${esc(backup.organization.name)} · exported ${new Date(backup.exported_at).toLocaleString()}</div><div class="backup-counts">${tables.map(table=>`<div class="metric"><span>${esc(table.key.replaceAll('_',' '))}</span><strong>${summary[table.key]}</strong></div>`).join('')}</div><p class="report-note">Inspection is read-only. No live workspace data was changed. Photo paths are listed in the backup, but photo files are not embedded.</p>`;
+      const backup=await validate(file);const summary=counts(backup.data);selectedBackup=backup;
+      const sameWorkspace=backup.organization.id===context().organization.id;
+      preview.innerHTML=`<div class="sync-notice"><strong>${backup.verified?'Integrity verified':'Structure verified'}.</strong> ${esc(backup.organization.name)} · exported ${new Date(backup.exported_at).toLocaleString()}</div><div class="backup-counts">${tables.map(table=>`<div class="metric"><span>${esc(table.key.replaceAll('_',' '))}</span><strong>${summary[table.key]}</strong></div>`).join('')}</div><div class="recovery-plan"><strong>Additive recovery plan</strong><p>Missing operational records can be restored. Existing live records are kept exactly as they are; nothing is overwritten or deleted.</p><p>Memberships, invitations, activity logs, and photo files are inspection-only.</p>${context().role==='owner'&&sameWorkspace?`<button class="btn primary" type="button" onclick="DataPortability.restoreSelected()">Recover missing records</button>`:`<span class="report-note">${sameWorkspace?'Only the organization owner can run recovery.':'This backup belongs to a different workspace and cannot be restored here.'}</span>`}</div>`;
     }catch(error){preview.innerHTML=`<div class="sync-notice"><strong>Backup needs attention.</strong> ${esc(error.message)}</div>`;}
     event.target.value='';
   }
+  async function restoreSelected(){
+    if(context().role!=='owner'||!selectedBackup)return showToast('Inspect a valid backup as the organization owner first');
+    const expected=context().organization.name;const typed=prompt(`Type ${expected} to confirm additive recovery.`);
+    if(typed!==expected)return showToast('Recovery cancelled');
+    await exportCloud();
+    const {data:run,error}=await LedgerAuth.client.rpc('restore_cloud_backup',{target_organization_id:context().organization.id,backup:selectedBackup});
+    if(error)return showToast(error.message);
+    selectedBackup=null;await CloudLedger.load();render();
+    const total=Object.values(run?.restored_counts||{}).reduce((sum,value)=>sum+Number(value||0),0);
+    showToast(`${total} missing records recovered`);
+  }
   function markup(){
     if(!canManage())return '';
-    return `<div class="section-label">Data portability</div><div class="card cloud-backup-card"><p class="sub">Download a complete, organization-scoped JSON backup of operational records. Use the inspector to verify a backup without changing live data.</p><div class="card-actions"><button id="cloud-backup-export" class="btn primary" type="button" onclick="DataPortability.exportCloud()">Export cloud backup</button><label class="btn photo-label">Inspect backup<input type="file" accept="application/json,.json" onchange="DataPortability.inspect(event)"></label></div><p class="report-note">Backups can contain staff names and invitation email addresses. Store them securely. Uploaded photo files are not embedded.</p><div id="cloud-backup-preview"></div></div>`;
+    return `<div class="section-label">Data portability &amp; recovery</div><div class="card cloud-backup-card"><p class="sub">Download a complete, organization-scoped JSON backup, inspect its integrity, and recover missing operational records without replacing live data.</p><div class="card-actions"><button id="cloud-backup-export" class="btn primary" type="button" onclick="DataPortability.exportCloud()">Export cloud backup</button><label class="btn photo-label">Inspect for recovery<input type="file" accept="application/json,.json" onchange="DataPortability.inspect(event)"></label></div><div class="retention-policy"><strong>Recommended retention</strong><p>Keep the three newest monthly backups and one backup before any major import or recovery. Delete superseded files after 90 days unless the business requires longer retention. Store files in a restricted business account because they may contain staff names and invitation email addresses.</p></div><p class="report-note">Greenhouse Ledger does not retain downloaded backup files on its servers. Uploaded photo files are not embedded.</p><div id="cloud-backup-preview"></div></div>`;
   }
   const originalTeam=CloudLedger.renderTeam;
-  CloudLedger.renderTeam=()=>originalTeam()+markup()+`<style>.backup-counts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.backup-counts .metric strong{font-size:20px}@media(max-width:720px){.backup-counts{grid-template-columns:1fr 1fr}}</style>`;
-  window.DataPortability={exportCloud,inspect};
+  CloudLedger.renderTeam=()=>originalTeam()+markup()+`<style>.backup-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}.backup-counts .metric strong{font-size:20px}.retention-policy,.recovery-plan{margin-top:14px;padding:13px;border-radius:9px;background:var(--soil-2)}.retention-policy p,.recovery-plan p{color:var(--ink-dim);font-size:12px;line-height:1.5}.recovery-plan .btn{margin-top:4px}@media(max-width:720px){.backup-counts{grid-template-columns:1fr 1fr}}</style>`;
+  window.DataPortability={exportCloud,inspect,restoreSelected};
 })();
