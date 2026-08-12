@@ -36,6 +36,7 @@ const settings = read('settings.js');
 const auth = read('auth.js');
 const cloudLedger = read('cloud-ledger.js');
 const invitationMigration = read('supabase/migrations/20260812150000_phase_13_team_invitations.sql');
+const memberRepairMigration = read('supabase/migrations/20260812161500_prevent_invitation_member_downgrades.sql');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
 const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => match[1]).filter(path => path !== '');
@@ -70,6 +71,16 @@ if (!/get_organization_invitation_details/.test(auth) || !/emailRedirectTo\s*:\s
   fail('Invitation email delivery must authenticate managers and keep provider secrets server-side');
 } else {
   pass('Owner-first invitation lifecycle and server-side email boundaries are enforced');
+}
+
+if (!/if\(error\)return showToast\(error\.message\)/.test(cloudLedger)) {
+  fail('Invitation form must display database membership-protection errors');
+} else if (!/already belongs to this organization/.test(memberRepairMigration) || /on conflict[\s\S]*do update set role/i.test(memberRepairMigration)) {
+  fail('Invitation acceptance must reject existing members without rewriting their role');
+} else if (!/prevent_duplicate_member_invitation/.test(memberRepairMigration)) {
+  fail('Invitation insertion must enforce duplicate-member protection in the database');
+} else {
+  pass('Existing members cannot be invited, downgraded, or reassigned through invitations');
 }
 
 const manifest = JSON.parse(read('manifest.webmanifest'));

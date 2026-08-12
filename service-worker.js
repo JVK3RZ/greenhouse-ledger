@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v13-team-invitations';
+const CACHE_NAME = 'greenhouse-ledger-v13-invitation-member-repair';
 const APP_SHELL = [
   './',
   './index.html',
