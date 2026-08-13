@@ -49,7 +49,7 @@
         <div class="report-actions"><button class="btn" onclick="LedgerReports.exportInventory()">Export inventory CSV</button><button class="btn" onclick="LedgerReports.exportTransactions()">Export movements CSV</button><button class="btn" onclick="window.print()">Print report</button></div>
       </div>
       <div class="metric-grid">
-        <div class="metric"><span>Units on hand</span><strong>${report.units}</strong></div>
+        <div class="metric"><span>${esc(WorkspaceSettings.quantityLabel().replace(/\b\w/g,c=>c.toUpperCase()))} on hand</span><strong>${report.units}</strong></div>
         <div class="metric"><span>Inventory cost</span><strong>${money(report.costValue)}</strong></div>
         <div class="metric"><span>Retail value</span><strong>${money(report.retailValue)}</strong></div>
         <div class="metric"><span>Potential margin</span><strong>${money(margin)}</strong></div>
@@ -60,7 +60,7 @@
           <div class="report-note">The on-screen summary uses the latest synchronized activity. The CSV export securely retrieves the complete selected date range from Supabase.</div>
         </section>
         <section><div class="section-label">Low-stock review</div>
-          ${report.lowStock.length?`<div class="report-scroll"><table class="report-table"><thead><tr><th>Plant</th><th>Location</th><th>Stage</th><th>Units</th></tr></thead><tbody>${report.lowStock.map(batch=>`<tr><td>${esc(batch.plant_catalog?.common_name||'Unknown')}</td><td>${esc(batch.location?.name||'Unassigned')}</td><td>${esc(String(batch.stage||'').replaceAll('_',' '))}</td><td>${batch.quantity}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No batches are at or below ${lowStockLevel()} units.</div>'}
+          ${report.lowStock.length?`<div class="report-scroll"><table class="report-table"><thead><tr><th>Plant</th><th>Location</th><th>Stage</th><th>${esc(WorkspaceSettings.quantityLabel())}</th></tr></thead><tbody>${report.lowStock.map(batch=>`<tr><td>${esc(batch.plant_catalog?.common_name||'Unknown')}</td><td>${esc(batch.location?.name||'Unassigned')}</td><td>${esc(String(batch.stage||'').replaceAll('_',' '))}</td><td>${batch.quantity}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">No batches are at or below ${lowStockLevel()} ${esc(WorkspaceSettings.quantityLabel())}.</div>`}
         </section>
       </div>`;
   }
