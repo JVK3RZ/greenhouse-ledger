@@ -64,8 +64,8 @@
     const p=palette();
     const account=context().profile;
     const canBrand=['owner','manager'].includes(context().role);
-    return `<div class="section-label">Settings</div><div class="tabs">${sectionButton('account','Account & security')}${sectionButton('business','Business profile')}${sectionButton('brand','Brand Studio')}</div>
-      ${section==='account'?accountMarkup(account):section==='business'?WorkspaceSettings.renderMarkup():brandMarkup(p,canBrand)}`;
+    return `<div class="section-label">Settings</div><div class="tabs settings-tabs">${sectionButton('account','Account & security')}${sectionButton('business','Business profile')}${sectionButton('email','Email & invitations')}${sectionButton('brand','Brand Studio')}${sectionButton('about','About')}</div>
+      ${section==='account'?accountMarkup(account):section==='business'?WorkspaceSettings.renderMarkup():section==='email'?emailMarkup():section==='about'?aboutMarkup():brandMarkup(p,canBrand)}`;
   }
   function accountMarkup(account){
     return `<div class="settings-grid">
@@ -82,6 +82,19 @@
       <div class="settings-grid"><div><label class="logo-drop">${image?`<img src="${esc(image)}" alt="Logo preview">`:'<span><strong>Upload company logo</strong><br><small>PNG, JPEG, WebP, or SVG · up to 2 MB</small></span>'}<input id="brand-logo-file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onchange="Settings.chooseLogo(event)"></label></div>
       <form id="brand-form" class="stack-form" oninput="Settings.preview()" onsubmit="Settings.saveBrand(event)"><label>Primary color<input name="primary" type="color" value="${p.primary}"></label><label>Accent color<input name="accent" type="color" value="${p.accent}"></label><label>Background color<input name="background" type="color" value="${p.background}"></label><div class="brand-actions"><button class="btn primary" type="submit">Publish branding</button><button class="btn" type="button" onclick="Settings.resetBrand()">Reset default</button></div></form></div>
       <div id="brand-preview">${previewMarkup(p,image)}</div><div id="settings-status" class="settings-status" aria-live="polite"></div></section>`;
+  }
+  function emailMarkup(){
+    const invitations=CloudLedger.getData().invitations||[];
+    const domainBlocked=invitations.some(item=>/can only send testing emails|verify a domain/i.test(item.delivery_error||''));
+    const sent=invitations.some(item=>item.sent_at);
+    const state=domainBlocked?'Setup required':sent?'Connected':'Not tested';
+    const badge=domainBlocked?'delivery_failed':sent?'accepted':'pending';
+    return `<div class="settings-grid"><section class="card settings-section"><div class="settings-heading"><div><h2>Email delivery</h2><p class="sub">Status for invitations sent from this workspace.</p></div><span class="status-badge status-${badge}">${state}</span></div>${domainBlocked?'<div class="sync-notice offline"><strong>Verify a sending domain.</strong> Resend is currently in testing mode, so it can only email the account that created the API key.</div>':sent?'<div class="sync-notice"><strong>Email delivery is working.</strong> Invitation links remain available as a fallback.</div>':'<p class="report-note">No delivery result is available yet. Create an invitation and choose Send by email to test the current configuration.</p>'}<div class="settings-facts"><span><small>Invitation lifetime</small><strong>7 days</strong></span><span><small>Acceptance</small><strong>Single-use and email-locked</strong></span><span><small>Fallback</small><strong>Copy and message the private link</strong></span></div></section>
+      <section class="card settings-section"><h2>Domain setup checklist</h2><ol class="settings-checklist"><li>Purchase or use a business domain.</li><li>Add the domain in Resend and copy its DNS records.</li><li>Add those records at the domain provider.</li><li>After verification, change <code>INVITATION_FROM_EMAIL</code> to an address on that domain.</li><li>Send a new test invitation and confirm delivery.</li></ol><p class="report-note">API keys and provider secrets remain protected in Supabase and are never shown in the browser.</p></section></div>`;
+  }
+  function aboutMarkup(){
+    const contact=org().contact_email;
+    return `<div class="settings-grid"><section class="card settings-section"><h2>Greenhouse Ledger</h2><p class="sub">Private inventory and greenhouse operations workspace.</p><div class="settings-facts"><span><small>Version</small><strong>1.10.0</strong></span><span><small>Product phase</small><strong>Phase 20 · Business settings</strong></span><span><small>Workspace role</small><strong>${esc(context().role)}</strong></span><span><small>Support contact</small><strong>${esc(contact||'Not configured')}</strong></span></div></section><section class="card settings-section"><h2>Pilot readiness</h2><p class="sub">Before onboarding a real greenhouse, publish the support contact, privacy policy, terms of use, and pilot agreement.</p><div class="settings-facts"><span><small>Privacy policy</small><strong>Not published</strong></span><span><small>Terms of use</small><strong>Not published</strong></span><span><small>Release notes</small><strong>Phases 1–20 tracked in the Product Bible</strong></span></div></section></div>`;
   }
   function previewMarkup(p,image){
     const text=safeForeground(p.background);
@@ -119,8 +132,8 @@
     if(contrast(next.primary,next.background)<1.35&&contrast(next.accent,next.background)<1.35){status('Choose at least one action color that stands out from the background.',true);return;}
     const organization=org();let path=organization.brand_logo_path;let oldPath=path;
     if(pendingLogo){const extension=(pendingLogo.name.split('.').pop()||'png').replace(/[^a-z0-9]/gi,'').toLowerCase();path=`${organization.id}/branding/logo-${Date.now()}.${extension}`;const uploaded=await LedgerAuth.client.storage.from('greenhouse-photos').upload(path,pendingLogo,{contentType:pendingLogo.type,upsert:false});if(uploaded.error){status(uploaded.error.message,true);return;}}
-    const payload={brand_primary:next.primary,brand_accent:next.accent,brand_background:next.background,brand_logo_path:path};
-    const {data,error}=await LedgerAuth.client.from('organizations').update(payload).eq('id',organization.id).select('brand_primary,brand_accent,brand_background,brand_logo_path').single();
+    const payload={target_organization_id:organization.id,target_brand_primary:next.primary,target_brand_accent:next.accent,target_brand_background:next.background,target_brand_logo_path:path};
+    const {data,error}=await LedgerAuth.client.rpc('update_organization_branding',payload);
     if(error){if(path&&path!==oldPath)await LedgerAuth.client.storage.from('greenhouse-photos').remove([path]);status(error.message,true);return;}
     Object.assign(organization,data);if(oldPath&&path!==oldPath)await LedgerAuth.client.storage.from('greenhouse-photos').remove([oldPath]);
     if(path){const signed=await LedgerAuth.client.storage.from('greenhouse-photos').createSignedUrl(path,3600);logoUrl=signed.data?.signedUrl||pendingLogoUrl;}else logoUrl='';
@@ -129,7 +142,7 @@
   async function resetBrand(){
     if(!confirm('Reset the shared logo and colors to the Greenhouse Ledger defaults?'))return;
     const oldPath=org().brand_logo_path;
-    const {data,error}=await LedgerAuth.client.from('organizations').update({brand_primary:DEFAULTS.primary,brand_accent:DEFAULTS.accent,brand_background:DEFAULTS.background,brand_logo_path:null}).eq('id',org().id).select('brand_primary,brand_accent,brand_background,brand_logo_path').single();
+    const {data,error}=await LedgerAuth.client.rpc('update_organization_branding',{target_organization_id:org().id,target_brand_primary:DEFAULTS.primary,target_brand_accent:DEFAULTS.accent,target_brand_background:DEFAULTS.background,target_brand_logo_path:null});
     if(error){status(error.message,true);return;}if(oldPath)await LedgerAuth.client.storage.from('greenhouse-photos').remove([oldPath]);Object.assign(org(),data);logoUrl='';pendingLogo=null;pendingLogoUrl='';applyTheme(DEFAULTS);render();showToast('Branding reset');
   }
 
