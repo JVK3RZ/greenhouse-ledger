@@ -11,6 +11,7 @@
   const label = value => String(value||'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
   const option = (value,text) => `<option value="${esc(value)}">${esc(text)}</option>`;
   const activeCatalog = () => data.catalog.filter(item=>item.status!=='archived');
+  const codeHint = (kind,fallback) => {const prefix=LedgerAuth.getContext().organization[kind];return prefix?`${prefix}-...`:fallback;};
 
   function bulkReceiptRow(){
     return `<div class="bulk-receive-row">
@@ -18,7 +19,7 @@
       <label>Location<select name="location_id" required>${data.locations.map(item=>option(item.id,item.name)).join('')}</select></label>
       <label>Quantity<input name="quantity" type="number" min="1" required></label>
       <label>Stage<select name="stage">${STAGES.map(stage=>option(stage,label(stage))).join('')}</select></label>
-      <label>Batch code<input name="batch_code" placeholder="optional"></label>
+      <label>Batch code<input name="batch_code" placeholder="${esc(codeHint('batch_prefix','optional'))}"></label>
       <label>Unit cost<input name="unit_cost" type="number" min="0" step="0.01"></label>
       <label>Unit price<input name="unit_price" type="number" min="0" step="0.01"></label>
       <button class="btn ghost small" type="button" onclick="this.closest('.bulk-receive-row').remove()">Remove</button>
@@ -94,7 +95,7 @@
     const nextTasks=[...open].sort((a,b)=>new Date(a.due_at||'9999-12-31')-new Date(b.due_at||'9999-12-31')).slice(0,6);
     return `${data.error?`<div class="sync-notice ${data.offline?'offline':''}">${esc(data.error)}</div>`:''}
       ${renderMemberWelcome()}${renderOwnerOnboarding()}
-      <div class="metric-grid"><div class="metric"><span>Units on hand</span><strong>${units}</strong></div><div class="metric"><span>Production zones</span><strong>${data.locations.length}</strong></div><div class="metric"><span>Open tasks</span><strong>${open.length}</strong></div><div class="metric"><span>Overdue</span><strong>${overdue.length}</strong></div></div>
+      <div class="metric-grid"><div class="metric"><span>${esc(label(WorkspaceSettings.quantityLabel()))} on hand</span><strong>${units}</strong></div><div class="metric"><span>Production zones</span><strong>${data.locations.length}</strong></div><div class="metric"><span>Open tasks</span><strong>${open.length}</strong></div><div class="metric"><span>Overdue</span><strong>${overdue.length}</strong></div></div>
       ${low.length?`<div class="sync-notice offline"><strong>Low stock:</strong> ${low.map(batch=>esc(`${batch.plant_catalog?.common_name||'Unknown'} (${batch.quantity})`)).join(' · ')}</div>`:''}
       <div class="section-label">Next work</div>
       ${nextTasks.length?nextTasks.map(task=>`<div class="today-item"><div><strong>${esc(task.title)}</strong><div class="today-space">${esc(task.location?.name||'All production zones')} · ${task.due_at?new Date(task.due_at).toLocaleString():'No due date'} · ${esc(task.assignee?.display_name||'Unassigned')}</div></div><button class="btn primary small" onclick="CloudLedger.completeTask('${task.id}')">Complete</button></div>`).join(''):'<div class="empty">No open work. Create a care task from Operations.</div>'}
@@ -126,7 +127,7 @@
     return `
       ${data.error?`<div class="sync-notice ${data.offline?'offline':''}">${esc(data.error)}</div>`:''}
       <div class="metric-grid">
-        <div class="metric"><span>Units on hand</span><strong>${total}</strong></div>
+        <div class="metric"><span>${esc(label(WorkspaceSettings.quantityLabel()))} on hand</span><strong>${total}</strong></div>
         <div class="metric"><span>Active batches</span><strong>${data.batches.length}</strong></div>
         <div class="metric"><span>Retail ready</span><strong>${retail}</strong></div>
         <div class="metric"><span>Locations</span><strong>${data.locations.length}</strong></div>
@@ -144,7 +145,7 @@
           <label>Location<select name="location_id" required>${data.locations.map(item=>option(item.id,item.name)).join('')}</select></label>
           <label>Quantity<input name="quantity" type="number" min="1" required></label>
           <label>Stage<select name="stage">${STAGES.map(stage=>option(stage,label(stage))).join('')}</select></label>
-          <label>Batch code<input name="batch_code" placeholder="optional"></label>
+          <label>Batch code<input name="batch_code" placeholder="${esc(codeHint('batch_prefix','optional'))}"></label>
           <label>Unit cost<input name="unit_cost" type="number" min="0" step="0.01"></label>
           <label>Unit price<input name="unit_price" type="number" min="0" step="0.01"></label>
           <button class="btn primary" type="submit">Receive batch</button>
@@ -161,7 +162,7 @@
       <div class="section-label">Current batches</div>
       ${data.batches.length?data.batches.map(batch=>`
         <div class="card inventory-card">
-          <div class="card-top"><div><div class="plant-name">${esc(batch.plant_catalog.common_name)}</div><div class="plant-species">${esc(batch.location?.name||'Unassigned')} · ${esc(label(batch.stage))}${batch.batch_code?` · ${esc(batch.batch_code)}`:''}</div></div><div class="stock-count">${batch.quantity}<small>units</small></div></div>
+          <div class="card-top"><div><div class="plant-name">${esc(batch.plant_catalog.common_name)}</div><div class="plant-species">${esc(batch.location?.name||'Unassigned')} · ${esc(label(batch.stage))}${batch.batch_code?` · ${esc(batch.batch_code)}`:''}</div></div><div class="stock-count">${batch.quantity}<small>${esc(WorkspaceSettings.quantityLabel())}</small></div></div>
           <div class="due-row"><div class="due-chip due-ok">Cost ${money(batch.unit_cost)}</div><div class="due-chip due-ok">Price ${money(batch.unit_price)}</div></div>
           <div class="card-actions"><label class="btn small photo-label">${batch.photo_path?'Replace photo':'Add photo'}<input type="file" accept="image/jpeg,image/png,image/webp" onchange="CloudLedger.uploadBatchPhoto(event,'${batch.id}')"></label>${canCorrect?`<details class="record-editor"><summary class="btn small">Edit batch details</summary><form class="record-edit-form" onsubmit="CloudLedger.correctBatch(event,'${batch.id}')"><label>Production zone<select name="location_id"><option value="">Unassigned</option>${data.locations.map(location=>`<option value="${esc(location.id)}" ${batch.location_id===location.id?'selected':''}>${esc(location.name)}</option>`).join('')}</select></label><label>Stage<select name="stage">${STAGES.map(stage=>`<option value="${stage}" ${batch.stage===stage?'selected':''}>${esc(label(stage))}</option>`).join('')}</select></label><label>Batch code<input name="batch_code" value="${esc(batch.batch_code||'')}"></label><label>Unit cost<input name="unit_cost" type="number" min="0" step="0.01" value="${batch.unit_cost??''}"></label><label>Unit price<input name="unit_price" type="number" min="0" step="0.01" value="${batch.unit_price??''}"></label><label>Acquired on<input name="acquired_on" type="date" value="${esc(batch.acquired_on||'')}"></label><label class="editor-notes">Notes<textarea name="notes" rows="2">${esc(batch.notes||'')}</textarea></label><div class="editor-guidance">Quantity is protected. Use stock adjustments or a physical count to correct it.</div><button class="btn primary" type="submit">Save correction</button></form></details>`:''}</div>
           <form class="adjust-form" onsubmit="CloudLedger.adjustStock(event,'${batch.id}')">
@@ -183,7 +184,7 @@
           ${data.locations.map(location=>`<div class="mini-row"><span><strong>${esc(location.name)}</strong><small>${esc(label(location.location_type))}</small></span></div>`).join('')||'<div class="empty">No locations yet.</div>'}
         </section>
         <section><div class="section-label">Add one product</div>
-          <form class="stack-form catalog-manual-form" onsubmit="CloudLedger.addCatalogPlant(event)"><input name="common_name" placeholder="Common name — e.g. Golden Pothos" required><input name="scientific_name" placeholder="Scientific name (optional)"><input name="cultivar" placeholder="Cultivar (optional)"><input name="container_size" placeholder="Container size — e.g. 4-inch pot"><input name="sku" placeholder="Product code / SKU (optional)"><input name="default_price" type="number" min="0" step="0.01" placeholder="Default selling price"><div class="form-pair"><input name="watering_days" type="number" min="1" placeholder="Water every __ days"><input name="feeding_days" type="number" min="1" placeholder="Feed every __ days"></div><button class="btn primary" type="submit">Add product</button></form>
+          <form class="stack-form catalog-manual-form" onsubmit="CloudLedger.addCatalogPlant(event)"><input name="common_name" placeholder="Common name — e.g. Golden Pothos" required><input name="scientific_name" placeholder="Scientific name (optional)"><input name="cultivar" placeholder="Cultivar (optional)"><input name="container_size" placeholder="Container size — e.g. 4-inch pot"><input name="sku" placeholder="${esc(codeHint('sku_prefix','Product code / SKU (optional)'))}"><input name="default_price" type="number" min="0" step="0.01" placeholder="Default selling price"><div class="form-pair"><input name="watering_days" type="number" min="1" placeholder="Water every __ days"><input name="feeding_days" type="number" min="1" placeholder="Feed every __ days"></div><button class="btn primary" type="submit">Add product</button></form>
           <p class="report-note">A SKU is simply the business's internal product code. It can be left blank.</p>
         </section>
       </div>`;
