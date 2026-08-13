@@ -166,7 +166,7 @@ if (!/Data portability &amp; recovery/.test(dataPortability) || !/Recommended re
   pass('Backup recovery is owner-controlled, additive, auditable, and covers current operational history');
 }
 
-if (!/Edit product/.test(catalogOnboarding) || !/Edit batch details/.test(cloudLedger) || !/Activity history is preserved for accountability/.test(cloudLedger)) {
+if (!/Edit product/.test(catalogOnboarding) || !/Edit batch details/.test(cloudLedger) || !/Activity history is preserved for accountability/.test(cloudLedger) || !/slice\(0,activityVisible\)/.test(cloudLedger) || !/Show \$\{Math\.min\(25,remaining\)\} more/.test(cloudLedger)) {
   fail('Phase 19 must provide catalog and batch correction forms plus non-destructive activity filters');
 } else if (!/revoke update on table public\.plant_catalog, public\.inventory_batches from authenticated/.test(correctionsMigration)) {
   fail('Catalog and batch corrections must not bypass the protected database functions through direct updates');
