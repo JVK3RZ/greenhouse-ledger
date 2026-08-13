@@ -43,6 +43,7 @@ const stockCountMigration = read('supabase/migrations/20260812200000_phase_16_bu
 const stockCountHardeningMigration = read('supabase/migrations/20260812203000_harden_phase_16_count_access.sql');
 const plantHealthMigration = read('supabase/migrations/20260812213000_phase_17_plant_health_issues.sql');
 const recoveryMigration = read('supabase/migrations/20260812230000_phase_18_backup_recovery.sql');
+const correctionsMigration = read('supabase/migrations/20260813013000_phase_19_record_corrections.sql');
 const dataPortability = read('data-portability.js');
 const catalogOnboarding = read('catalog-onboarding.js');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
@@ -143,7 +144,7 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
@@ -163,6 +164,22 @@ if (!/Data portability &amp; recovery/.test(dataPortability) || !/Recommended re
   fail('Recovery exclusions and backup retention responsibility must be explicit');
 } else {
   pass('Backup recovery is owner-controlled, additive, auditable, and covers current operational history');
+}
+
+if (!/Edit product/.test(catalogOnboarding) || !/Edit batch details/.test(cloudLedger) || !/Activity history is preserved for accountability/.test(cloudLedger)) {
+  fail('Phase 19 must provide catalog and batch correction forms plus non-destructive activity filters');
+} else if (!/revoke update on table public\.plant_catalog, public\.inventory_batches from authenticated/.test(correctionsMigration)) {
+  fail('Catalog and batch corrections must not bypass the protected database functions through direct updates');
+} else if ((correctionsMigration.match(/Owner or manager access required/g)||[]).length !== 3) {
+  fail('Catalog, status, and batch corrections must require an owner or manager');
+} else if (!/catalog_product_corrected/.test(correctionsMigration) || !/inventory_batch_corrected/.test(correctionsMigration) || !/'before'/.test(correctionsMigration) || !/'after'/.test(correctionsMigration)) {
+  fail('Phase 19 corrections must preserve before-and-after activity history');
+} else if (/set\s+quantity\s*=/.test(correctionsMigration) || !/Quantity is protected/.test(cloudLedger)) {
+  fail('Record correction must not directly rewrite inventory quantity');
+} else if (!/set_inventory_batch_photo/.test(cloudLedger) || !/Photo path must belong to this inventory batch/.test(correctionsMigration)) {
+  fail('Batch photo updates must remain membership-checked after direct update access is removed');
+} else {
+  pass('Record corrections are manager-controlled, quantity-safe, auditable, and paired with non-destructive activity filters');
 }
 
 const manifest = JSON.parse(read('manifest.webmanifest'));

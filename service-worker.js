@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v18-backup-recovery';
+const CACHE_NAME = 'greenhouse-ledger-v19-record-corrections';
 const APP_SHELL = [
   './',
   './index.html',

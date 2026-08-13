@@ -2,6 +2,7 @@
   const STAGES = ['propagation','seedling','vegetative','finishing','retail_ready','dormant'];
   let data = {locations:[],catalog:[],batches:[],transactions:[],counts:[],tasks:[],issues:[],members:[],invitations:[],activity:[],loading:false,offline:false,error:null};
   let inventoryTool = 'single';
+  let activityFilters = {days:'30',actor:'',type:''};
 
   const client = () => LedgerAuth.client;
   const organizationId = () => LedgerAuth.getContext().organization.id;
@@ -63,7 +64,7 @@
       client().from('plant_health_issues').select('*, batch:inventory_batches(batch_code,plant_catalog(common_name,container_size)), location:locations(name), reporter:profiles!plant_health_issues_reported_by_fkey(display_name), plant_health_issue_updates(*, author:profiles!plant_health_issue_updates_created_by_fkey(display_name))').eq('organization_id',org).order('created_at',{ascending:false}),
       client().from('organization_members').select('profile_id,role,profile:profiles(display_name)').eq('organization_id',org),
       client().from('organization_invitations').select('*').eq('organization_id',org).order('created_at',{ascending:false}),
-      client().from('activity_logs').select('*, actor:profiles(display_name)').eq('organization_id',org).order('created_at',{ascending:false}).limit(50)
+      client().from('activity_logs').select('*, actor:profiles(display_name)').eq('organization_id',org).order('created_at',{ascending:false}).limit(200)
     ]);
     const failed=[locations,catalog,batches,transactions,counts,tasks,issues,members,invitations,activity].find(result=>result.error);
     if(failed){
@@ -100,12 +101,25 @@
       ${data.activity.slice(0,8).map(item=>`<div class="mini-row"><span><strong>${esc(label(item.action))}</strong><small>${esc(item.actor?.display_name||'System')} · ${esc(label(item.entity_type))}</small></span><small>${new Date(item.created_at).toLocaleString()}</small></div>`).join('')||'<div class="empty">No business activity yet.</div>'}`;
   }
 
+  function filteredActivity(){
+    const cutoff=activityFilters.days==='all'?null:Date.now()-Number(activityFilters.days)*86400000;
+    return data.activity.filter(item=>(!cutoff||new Date(item.created_at).getTime()>=cutoff)&&(!activityFilters.actor||item.actor_id===activityFilters.actor)&&(!activityFilters.type||item.entity_type===activityFilters.type));
+  }
+
+  function activityHistory(){
+    const actors=[...new Map(data.activity.filter(item=>item.actor_id).map(item=>[item.actor_id,item.actor?.display_name||'Unnamed staff member'])).entries()];
+    const types=[...new Set(data.activity.map(item=>item.entity_type).filter(Boolean))].sort();
+    const items=filteredActivity();
+    return `<div class="activity-filter"><label>Time period<select onchange="CloudLedger.filterActivity('days',this.value)"><option value="7" ${activityFilters.days==='7'?'selected':''}>Last 7 days</option><option value="30" ${activityFilters.days==='30'?'selected':''}>Last 30 days</option><option value="90" ${activityFilters.days==='90'?'selected':''}>Last 90 days</option><option value="all" ${activityFilters.days==='all'?'selected':''}>All loaded activity</option></select></label><label>Staff member<select onchange="CloudLedger.filterActivity('actor',this.value)"><option value="">Everyone</option>${actors.map(([id,name])=>`<option value="${esc(id)}" ${activityFilters.actor===id?'selected':''}>${esc(name)}</option>`).join('')}</select></label><label>Record type<select onchange="CloudLedger.filterActivity('type',this.value)"><option value="">All activity</option>${types.map(type=>`<option value="${esc(type)}" ${activityFilters.type===type?'selected':''}>${esc(label(type))}</option>`).join('')}</select></label></div><p class="report-note">Activity history is preserved for accountability. Filters change this view without deleting records.</p>${items.map(a=>`<div class="mini-row"><span><strong>${esc(label(a.action))}</strong><small>${esc(a.actor?.display_name||'System')} · ${esc(label(a.entity_type))}</small></span><small>${new Date(a.created_at).toLocaleString()}</small></div>`).join('')||'<div class="empty">No activity matches these filters.</div>'}`;
+  }
+
   function renderInventory(){
     if(data.loading) return '<div class="empty">Loading greenhouse inventory…</div>';
     const total=data.batches.reduce((sum,batch)=>sum+batch.quantity,0);
     const retail=data.batches.filter(batch=>batch.stage==='retail_ready').reduce((sum,batch)=>sum+batch.quantity,0);
     const openCount=data.counts.find(count=>count.status==='draft');
     const canApprove=['owner','manager'].includes(LedgerAuth.getContext().role);
+    const canCorrect=canApprove;
     const counted=openCount?.inventory_count_lines.filter(line=>line.counted_quantity!==null).length||0;
     const countLines=openCount?.inventory_count_lines||[];
     return `
@@ -148,7 +162,7 @@
         <div class="card inventory-card">
           <div class="card-top"><div><div class="plant-name">${esc(batch.plant_catalog.common_name)}</div><div class="plant-species">${esc(batch.location?.name||'Unassigned')} · ${esc(label(batch.stage))}${batch.batch_code?` · ${esc(batch.batch_code)}`:''}</div></div><div class="stock-count">${batch.quantity}<small>units</small></div></div>
           <div class="due-row"><div class="due-chip due-ok">Cost ${money(batch.unit_cost)}</div><div class="due-chip due-ok">Price ${money(batch.unit_price)}</div></div>
-          <div class="card-actions"><label class="btn small photo-label">${batch.photo_path?'Replace photo':'Add photo'}<input type="file" accept="image/jpeg,image/png,image/webp" onchange="CloudLedger.uploadBatchPhoto(event,'${batch.id}')"></label></div>
+          <div class="card-actions"><label class="btn small photo-label">${batch.photo_path?'Replace photo':'Add photo'}<input type="file" accept="image/jpeg,image/png,image/webp" onchange="CloudLedger.uploadBatchPhoto(event,'${batch.id}')"></label>${canCorrect?`<details class="record-editor"><summary class="btn small">Edit batch details</summary><form class="record-edit-form" onsubmit="CloudLedger.correctBatch(event,'${batch.id}')"><label>Production zone<select name="location_id"><option value="">Unassigned</option>${data.locations.map(location=>`<option value="${esc(location.id)}" ${batch.location_id===location.id?'selected':''}>${esc(location.name)}</option>`).join('')}</select></label><label>Stage<select name="stage">${STAGES.map(stage=>`<option value="${stage}" ${batch.stage===stage?'selected':''}>${esc(label(stage))}</option>`).join('')}</select></label><label>Batch code<input name="batch_code" value="${esc(batch.batch_code||'')}"></label><label>Unit cost<input name="unit_cost" type="number" min="0" step="0.01" value="${batch.unit_cost??''}"></label><label>Unit price<input name="unit_price" type="number" min="0" step="0.01" value="${batch.unit_price??''}"></label><label>Acquired on<input name="acquired_on" type="date" value="${esc(batch.acquired_on||'')}"></label><label class="editor-notes">Notes<textarea name="notes" rows="2">${esc(batch.notes||'')}</textarea></label><div class="editor-guidance">Quantity is protected. Use stock adjustments or a physical count to correct it.</div><button class="btn primary" type="submit">Save correction</button></form></details>`:''}</div>
           <form class="adjust-form" onsubmit="CloudLedger.adjustStock(event,'${batch.id}')">
             <select name="transaction_type"><option value="received">Receive</option><option value="sale">Sale</option><option value="loss">Loss</option><option value="propagation">Propagation</option><option value="adjustment_in">Correction +</option><option value="adjustment_out">Correction −</option></select>
             <input name="quantity" type="number" min="1" placeholder="Qty" required>
@@ -204,7 +218,7 @@
       <div class="section-label">Create care task</div>
       <form class="ops-form" onsubmit="CloudLedger.addTask(event)"><label>Title<input name="title" required placeholder="Water House 1"></label><label>Type<select name="task_type"><option>watering</option><option>feeding</option><option>inspection</option><option>repotting</option><option>pest_control</option><option>other</option></select></label><label>Due<input name="due_at" type="datetime-local" required></label><label>Assign<select name="assigned_to">${memberOptions}</select></label><label>Location<select name="location_id"><option value="">Any location</option>${data.locations.map(l=>option(l.id,l.name)).join('')}</select></label><label>Repeat days<input name="recurrence_days" type="number" min="1" placeholder="optional"></label><label>Notes<input name="notes"></label><button class="btn primary">Create task</button></form>
       <div class="section-label">Care queue</div>${open.length?open.map(t=>`<div class="today-item"><div><strong>${esc(t.title)}</strong><div class="today-space">${esc(t.location?.name||'All locations')} · ${t.due_at?new Date(t.due_at).toLocaleString():'No due date'} · ${esc(t.assignee?.display_name||'Unassigned')}${t.recurrence_days?` · repeats ${t.recurrence_days}d`:''}</div></div><button class="btn primary small" onclick="CloudLedger.completeTask('${t.id}')">Complete</button></div>`).join(''):'<div class="empty">No open care tasks.</div>'}
-      <div class="section-label">Recent activity</div>${data.activity.map(a=>`<div class="mini-row"><span><strong>${esc(label(a.action))}</strong><small>${esc(a.actor?.display_name||'System')} · ${esc(label(a.entity_type))}</small></span><small>${new Date(a.created_at).toLocaleString()}</small></div>`).join('')||'<div class="empty">No activity yet.</div>'}`;
+      <div class="section-label">Activity history</div>${activityHistory()}`;
   }
 
   function renderTeam(){
@@ -238,6 +252,8 @@
     event.preventDefault(); const form=new FormData(event.currentTarget); let kind=form.get('transaction_type'); let delta=Number(form.get('quantity')); if(['sale','loss','adjustment_out'].includes(kind))delta*=-1; if(kind.startsWith('adjustment_'))kind='adjustment';
     const {error}=await client().rpc('adjust_inventory_stock',{target_batch_id:batchId,stock_delta:delta,kind,stock_note:String(form.get('note')||'').trim()||null}); if(error)return showToast(error.message); await refresh('Stock updated');
   }
+  async function correctBatch(event,batchId){event.preventDefault();const form=new FormData(event.currentTarget);const value=name=>String(form.get(name)||'').trim();const number=name=>value(name)===''?null:Number(value(name));const {error}=await client().rpc('correct_inventory_batch',{target_batch_id:batchId,target_location_id:value('location_id')||null,target_stage:value('stage'),target_batch_code:value('batch_code')||null,target_unit_cost:number('unit_cost'),target_unit_price:number('unit_price'),target_acquired_on:value('acquired_on')||null,target_notes:value('notes')||null});if(error)return showToast(error.message);await refresh('Batch details corrected');}
+  function filterActivity(name,value){activityFilters[name]=value;render();}
   function setInventoryTool(tool){inventoryTool=tool;render();}
   function addBulkRow(){document.querySelector('.bulk-receive-rows')?.insertAdjacentHTML('beforeend',bulkReceiptRow());}
   async function bulkReceive(event){
@@ -286,7 +302,7 @@
   async function sendInvite(id,refreshAfter=true){const {data:{session}}=await client().auth.getSession();const response=await fetch(`${window.GREENHOUSE_SUPABASE.url}/functions/v1/send-organization-invitation`,{method:'POST',headers:{'Content-Type':'application/json','apikey':window.GREENHOUSE_SUPABASE.publishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({invitation_id:id})});const payload=await response.json().catch(()=>({}));if(!response.ok){showToast(payload.error||'Email delivery is not configured yet. Copy the invitation link instead.');if(refreshAfter)await refresh();return;}await refresh('Invitation email sent');}
   async function revokeInvite(id){if(!confirm('Revoke this invitation? Its link will stop working immediately.'))return;const {error}=await client().rpc('revoke_organization_invitation',{target_invitation_id:id});if(error)return showToast(error.message);await refresh('Invitation revoked');}
   async function replaceInvite(id){const original=data.invitations.find(i=>i.id===id);if(!original)return;const {data:replacement,error}=await client().from('organization_invitations').insert({organization_id:organizationId(),email:original.email,role:original.role}).select().single();if(error)return showToast(error.message);await refresh('Replacement invitation created');await copyInvite(replacement.code);}
-  async function uploadBatchPhoto(event,batchId){const file=event.target.files[0];if(!file)return;const path=`${organizationId()}/batches/${batchId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);if(uploaded.error)return showToast(uploaded.error.message);const {error}=await client().from('inventory_batches').update({photo_path:path}).eq('id',batchId);if(error)return showToast(error.message);await refresh('Batch photo uploaded');}
+  async function uploadBatchPhoto(event,batchId){const file=event.target.files[0];if(!file)return;const path=`${organizationId()}/batches/${batchId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);if(uploaded.error)return showToast(uploaded.error.message);const {error}=await client().rpc('set_inventory_batch_photo',{target_batch_id:batchId,target_photo_path:path});if(error){await client().storage.from('greenhouse-photos').remove([path]);return showToast(error.message);}await refresh('Batch photo uploaded');}
 
-  window.CloudLedger={load,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,setInventoryTool,addBulkRow,bulkReceive,startCount,saveCountLine,finalizeCount,cancelCount,reportIssue,updateIssue,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,uploadBatchPhoto,getData:()=>data};
+  window.CloudLedger={load,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,correctBatch,filterActivity,setInventoryTool,addBulkRow,bulkReceive,startCount,saveCountLine,finalizeCount,cancelCount,reportIssue,updateIssue,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,uploadBatchPhoto,getData:()=>data};
 })();
