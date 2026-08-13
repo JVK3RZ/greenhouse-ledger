@@ -2,7 +2,7 @@
 
 Greenhouse Ledger is an installable, multi-tenant greenhouse inventory and operations platform.
 
-Current pilot release candidate: `1.8.0` (Phase 18).
+Current pilot release candidate: `1.9.0` (Phase 19).
 
 ## Open the app
 
@@ -57,6 +57,8 @@ Catalog setup presents products visually and distinguishes a reusable product de
 Cloud workspace backups contain organization-scoped database records and may include staff names and invitation email addresses. Store exported JSON files securely. Database photo paths are included, but binary photo files are not embedded.
 
 Phase 18 backups include physical-count and plant-health history. An owner can inspect a version 2 backup and atomically recover records that are missing from the same organization. Recovery never overwrites or deletes existing live records; memberships, invitations, generated activity logs, and photo binaries remain inspection-only. Greenhouse Ledger does not retain downloaded backup files. The recommended policy is to keep the three newest monthly backups plus one backup before a major import or recovery, then delete superseded files after 90 days unless the business requires longer retention.
+
+Phase 19 lets owners and managers correct catalog names, SKUs, container details, pricing and care defaults, plus non-quantity batch details such as code, zone, stage, pricing, acquisition date, and notes. Corrections run through role-checked database functions and preserve before-and-after values in activity history. Quantity remains protected behind stock movements and physical counts. Activity filters change the visible history without deleting accountability records.
 
 ## Supabase
 
