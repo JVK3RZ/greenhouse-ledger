@@ -118,7 +118,7 @@
     if(profileResult.error){ renderAuth('signin',profileResult.error.message); return; }
     if(!profileResult.data.username){ renderUsername(); return; }
     const {data:memberships,error} = await client.from('organization_members')
-      .select('role, organization:organizations(id,name,currency_code,timezone,low_stock_threshold,brand_primary,brand_accent,brand_background,brand_logo_path)')
+      .select('role, organization:organizations(id,name,business_type,contact_email,contact_phone,address_line_1,address_line_2,city,region,postal_code,country_code,website_url,currency_code,timezone,low_stock_threshold,quantity_label,sku_prefix,batch_prefix,brand_primary,brand_accent,brand_background,brand_logo_path)')
       .eq('profile_id',session.user.id).limit(1);
     if(error){ renderAuth('signin',error.message); return; }
     if(!memberships.length){ renderOrganization(); return; }
