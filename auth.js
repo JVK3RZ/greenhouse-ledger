@@ -171,7 +171,7 @@
     const invitationCode = new URL(location.href).searchParams.get('invite');
     if(invitationCode){
       const preview=await client.rpc('get_organization_invitation_details',{invitation_code:invitationCode});
-      if(preview.error||!preview.data?.length){ renderAuth('signin','This invitation is invalid, expired, or has been revoked. Ask the owner for a new invitation.'); return; }
+      if(preview.error||!preview.data?.length){ renderAuth('signin','This invitation link is no longer active. If you already accepted it, sign in normally below with your email or username. If you never joined the team, ask the owner for a new invitation.'); return; }
       invitationPreview=preview.data?.[0]||null;
     }
     const {data:{session}} = await client.auth.getSession();
