@@ -44,6 +44,7 @@ const stockCountHardeningMigration = read('supabase/migrations/20260812203000_ha
 const plantHealthMigration = read('supabase/migrations/20260812213000_phase_17_plant_health_issues.sql');
 const recoveryMigration = read('supabase/migrations/20260812230000_phase_18_backup_recovery.sql');
 const correctionsMigration = read('supabase/migrations/20260813013000_phase_19_record_corrections.sql');
+const businessSettingsMigration = read('supabase/migrations/20260813171610_phase_20_business_settings.sql');
 const dataPortability = read('data-portability.js');
 const catalogOnboarding = read('catalog-onboarding.js');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
@@ -144,7 +145,7 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
@@ -180,6 +181,20 @@ if (!/Edit product/.test(catalogOnboarding) || !/Edit batch details/.test(cloudL
   fail('Batch photo updates must remain membership-checked after direct update access is removed');
 } else {
   pass('Record corrections are manager-controlled, quantity-safe, auditable, and paired with non-destructive activity filters');
+}
+
+if (!/Email & invitations/.test(settings) || !/Phase 20 · Business settings/.test(settings) || !/Workspace profile/.test(read('workspace-settings.js'))) {
+  fail('Phase 20 must provide workspace profile, email readiness, and product information settings');
+} else if (!/quantity_label/.test(read('workspace-settings.js')) || !/sku_prefix/.test(cloudLedger) || !/batch_prefix/.test(cloudLedger)) {
+  fail('Phase 20 inventory labels and code-prefix preferences must reach operational forms');
+} else if (!/revoke update on table public\.organizations from authenticated/.test(businessSettingsMigration)) {
+  fail('Organization settings must not bypass the protected Phase 20 functions through direct updates');
+} else if ((businessSettingsMigration.match(/Owner or manager access required/g)||[]).length !== 2 || !/security definer/g.test(businessSettingsMigration)) {
+  fail('Phase 20 settings and branding functions must enforce owner or manager access internally');
+} else if (!/organization_settings_updated/.test(businessSettingsMigration) || !/organization_branding_updated/.test(businessSettingsMigration)) {
+  fail('Phase 20 business and branding changes must leave organization activity history');
+} else {
+  pass('Business settings are role-checked, auditable, mobile-ready, and connected to operational labels');
 }
 
 const manifest = JSON.parse(read('manifest.webmanifest'));
