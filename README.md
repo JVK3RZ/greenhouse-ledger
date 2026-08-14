@@ -2,7 +2,7 @@
 
 Greenhouse Ledger is an installable, multi-tenant greenhouse inventory and operations platform.
 
-Current pilot release candidate: `1.10.0` (Phase 20).
+Current pilot release candidate: `1.11.0` (Phase 21).
 
 ## Open the app
 
@@ -61,6 +61,8 @@ Phase 18 backups include physical-count and plant-health history. An owner can i
 Phase 19 lets owners and managers correct catalog names, SKUs, container details, pricing and care defaults, plus non-quantity batch details such as code, zone, stage, pricing, acquisition date, and notes. Corrections run through role-checked database functions and preserve before-and-after values in activity history. Quantity remains protected behind stock movements and physical counts. Activity filters change the visible history without deleting accountability records.
 
 Phase 20 expands Settings with a shared workspace profile, inventory labels and code conventions, invitation-email readiness, and product/version information. Owners and managers can maintain business contact and address details, currency, timezone, low-stock behavior, quantity terminology, and suggested SKU and batch prefixes. Organization and branding updates run through membership-checked database functions and leave activity history.
+
+Phase 21 adds an administratively designated, reusable demo identity. Each demo sign-in removes any workspace previously created by that identity and returns to first-owner organization setup. Signing out performs the same tenant-scoped reset, including private photos, while retaining the demo login. Invitation email delivery is disabled in demo mode; link-only invitation lifecycle demonstrations remain available. Ordinary accounts cannot designate themselves as demos or invoke the protected reset endpoint.
 
 ## Supabase
 

@@ -2,6 +2,7 @@
   const config = window.GREENHOUSE_SUPABASE;
   const REMEMBER_KEY = 'greenhouse-ledger-remember';
   const LOGIN_KEY = 'greenhouse-ledger-login-id';
+  const DEMO_SESSION_KEY = 'greenhouse-ledger-demo-session';
   let rememberSession = localStorage.getItem(REMEMBER_KEY) === 'true';
   const authStorage = {
     getItem(key){ return (rememberSession ? localStorage : sessionStorage).getItem(key); },
@@ -19,6 +20,9 @@
   let onReady = null;
   let invitationPreview = null;
   let acceptedInvitation = null;
+  let demoAccount = false;
+  let preparedSessionUser = null;
+  let demoPreparation = null;
 
   function escapeHtml(value){
     return String(value).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -73,6 +77,7 @@
     const password = String(form.get('password')||'');
     if(mode==='signin'){
       rememberSession = form.get('remember') === 'on';
+      sessionStorage.removeItem(DEMO_SESSION_KEY);
       if(rememberSession){ localStorage.setItem(REMEMBER_KEY,'true'); localStorage.setItem(LOGIN_KEY,login); }
       else { localStorage.removeItem(REMEMBER_KEY); localStorage.removeItem(LOGIN_KEY); }
     }
@@ -88,7 +93,7 @@
       renderAuth('signin','Check your email to confirm your account, then sign in.');
       return;
     }
-    await routeSession(result.data.session);
+    await routeSession(result.data.session,{freshSignIn:true});
   }
 
   async function signIn(identifier,password){
@@ -104,8 +109,42 @@
     }catch(error){ return {data:{session:null},error:new Error('Username sign-in is temporarily unavailable. You can still sign in with your email.')}; }
   }
 
-  async function routeSession(session){
+  async function demoStatus(){
+    const {data,error}=await client.rpc('is_demo_account');
+    if(error)throw error;
+    return data===true;
+  }
+
+  async function resetDemoWorkspace(){
+    const {data:{session}}=await client.auth.getSession();
+    if(!session)throw new Error('Authentication required.');
+    const response=await fetch(`${config.url}/functions/v1/reset-demo-workspace`,{
+      method:'POST',headers:{'Content-Type':'application/json','apikey':config.publishableKey,'Authorization':`Bearer ${session.access_token}`},body:'{}'
+    });
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(payload.error||'Demo workspace could not be reset.');
+    return payload;
+  }
+
+  async function prepareDemoSession(session,freshSignIn=false){
+    if(preparedSessionUser===session.user.id)return;
+    if(demoPreparation)return demoPreparation;
+    demoPreparation=(async()=>{
+      demoAccount=await demoStatus();
+      const activeDemoSession=sessionStorage.getItem(DEMO_SESSION_KEY)===session.user.id;
+      if(demoAccount&&(freshSignIn||!activeDemoSession))await resetDemoWorkspace();
+      if(demoAccount)sessionStorage.setItem(DEMO_SESSION_KEY,session.user.id);
+      preparedSessionUser=session.user.id;
+    })();
+    try{await demoPreparation;}finally{demoPreparation=null;}
+  }
+
+  async function routeSession(session,{prepareDemo=true,freshSignIn=false}={}){
     if(!session){ context=null; renderAuth(); return; }
+    if(prepareDemo){
+      try{await prepareDemoSession(session,freshSignIn);}
+      catch(error){await client.auth.signOut();renderAuth('signin',error.message);return;}
+    }
     const invitationCode = new URL(location.href).searchParams.get('invite');
     if(invitationCode){
       acceptedInvitation=invitationPreview?{organizationName:invitationPreview.organization_name,role:invitationPreview.role}:null;
@@ -122,7 +161,7 @@
       .eq('profile_id',session.user.id).limit(1);
     if(error){ renderAuth('signin',error.message); return; }
     if(!memberships.length){ renderOrganization(); return; }
-    context = {session,profile:{...session.user,...profileResult.data},organization:memberships[0].organization,role:memberships[0].role,acceptedInvitation};
+    context = {session,profile:{...session.user,...profileResult.data},organization:memberships[0].organization,role:memberships[0].role,acceptedInvitation,isDemo:demoAccount};
     onReady(context);
   }
 
@@ -157,12 +196,21 @@
     const {error:membershipError} = await client.from('organization_members')
       .insert({organization_id:organization.id,profile_id:user.id,role:'owner'});
     if(membershipError){ renderOrganization(membershipError.message); return; }
-    await routeSession((await client.auth.getSession()).data.session);
+    await routeSession((await client.auth.getSession()).data.session,{prepareDemo:false});
   }
 
   async function signOut(){
+    if(demoAccount){
+      const confirmed=confirm('Sign out and reset this demo? All greenhouse data created during this demonstration will be permanently cleared.');
+      if(!confirmed)return;
+      try{await resetDemoWorkspace();}
+      catch(error){alert(`${error.message} You are still signed in so the demo data is not left without notice.`);return;}
+    }
     await client.auth.signOut();
     context = null;
+    demoAccount = false;
+    preparedSessionUser = null;
+    sessionStorage.removeItem(DEMO_SESSION_KEY);
     renderAuth();
   }
 
@@ -182,5 +230,5 @@
     });
   }
 
-  window.LedgerAuth = {client,initialize,signOut,getContext:()=>context};
+  window.LedgerAuth = {client,initialize,signOut,getContext:()=>context,isDemo:()=>demoAccount};
 })();
