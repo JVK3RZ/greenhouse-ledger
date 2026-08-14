@@ -2,7 +2,7 @@
 
 Greenhouse Ledger is an installable, multi-tenant greenhouse inventory and operations platform.
 
-Current pilot release candidate: `1.11.0` (Phase 21).
+Current pilot release candidate: `1.11.1` (Phase 21 catalog interaction hotfix).
 
 ## Open the app
 
