@@ -45,9 +45,11 @@ const plantHealthMigration = read('supabase/migrations/20260812213000_phase_17_p
 const recoveryMigration = read('supabase/migrations/20260812230000_phase_18_backup_recovery.sql');
 const correctionsMigration = read('supabase/migrations/20260813013000_phase_19_record_corrections.sql');
 const businessSettingsMigration = read('supabase/migrations/20260813171610_phase_20_business_settings.sql');
+const demoMigration = read('supabase/migrations/20260814183000_phase_21_fresh_start_demo_account.sql');
 const dataPortability = read('data-portability.js');
 const catalogOnboarding = read('catalog-onboarding.js');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
+const demoResetFunction = read('supabase/functions/reset-demo-workspace/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
 const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => match[1]).filter(path => path !== '');
 
@@ -145,7 +147,7 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-fresh-start-demo)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
@@ -183,7 +185,7 @@ if (!/Edit product/.test(catalogOnboarding) || !/Edit batch details/.test(cloudL
   pass('Record corrections are manager-controlled, quantity-safe, auditable, and paired with non-destructive activity filters');
 }
 
-if (!/Email & invitations/.test(settings) || !/Phase 20 · Business settings/.test(settings) || !/Workspace profile/.test(read('workspace-settings.js'))) {
+if (!/Email & invitations/.test(settings) || !/Business profile/.test(settings) || !/Workspace profile/.test(read('workspace-settings.js'))) {
   fail('Phase 20 must provide workspace profile, email readiness, and product information settings');
 } else if (!/quantity_label/.test(read('workspace-settings.js')) || !/sku_prefix/.test(cloudLedger) || !/batch_prefix/.test(cloudLedger)) {
   fail('Phase 20 inventory labels and code-prefix preferences must reach operational forms');
@@ -195,6 +197,20 @@ if (!/Email & invitations/.test(settings) || !/Phase 20 · Business settings/.te
   fail('Phase 20 business and branding changes must leave organization activity history');
 } else {
   pass('Business settings are role-checked, auditable, mobile-ready, and connected to operational labels');
+}
+
+if (!/is_demo_account/.test(auth) || !/reset-demo-workspace/.test(auth) || !/Sign out and reset demo/.test(settings)) {
+  fail('Phase 21 must detect the designated demo identity and reset it at sign-in and sign-out');
+} else if (!/revoke all on table public\.demo_accounts from public, anon, authenticated/.test(demoMigration) || !/where demo\.profile_id = \(select auth\.uid\(\)\)/.test(demoMigration)) {
+  fail('Demo designation must remain administrative and demo status must be scoped to the current account');
+} else if (!/SUPABASE_SERVICE_ROLE_KEY/.test(demoResetFunction) || !/eq\("created_by",user\.id\)/.test(demoResetFunction) || !/This account is not authorized for demo reset/.test(demoResetFunction)) {
+  fail('Demo reset must authenticate the caller and delete only workspaces created by the designated demo identity');
+} else if (!/greenhouse-photos/.test(demoResetFunction) || !/Demo photos could not be cleared/.test(demoResetFunction)) {
+  fail('Demo reset must clear tenant-scoped private photos before deleting the database workspace');
+} else if (!/Invitation email is disabled in demo mode/.test(invitationFunction) || !/Create link only/.test(cloudLedger)) {
+  fail('Demo mode must block external invitation email while retaining link-only lifecycle demonstrations');
+} else {
+  pass('Fresh-start demo mode is allowlisted, tenant-scoped, storage-aware, and safe from external email delivery');
 }
 
 const manifest = JSON.parse(read('manifest.webmanifest'));

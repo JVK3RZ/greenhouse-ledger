@@ -68,11 +68,12 @@
       ${section==='account'?accountMarkup(account):section==='business'?WorkspaceSettings.renderMarkup():section==='email'?emailMarkup():section==='about'?aboutMarkup():brandMarkup(p,canBrand)}`;
   }
   function accountMarkup(account){
+    const demo=context().isDemo===true;
     return `<div class="settings-grid">
       <section class="card settings-section"><h2>Username</h2><p class="sub">Used with your email as an alternative way to sign in.</p><form class="stack-form" onsubmit="Settings.saveUsername(event)"><label>Username<input name="username" autocomplete="username" required minlength="3" maxlength="30" pattern="[A-Za-z0-9][A-Za-z0-9._-]{1,28}[A-Za-z0-9]" value="${esc(account.username||'')}"></label><button class="btn primary">Update username</button></form></section>
       <section class="card settings-section"><h2>Email address</h2><p class="sub">A confirmation may be sent to both your current and new address.</p><form class="stack-form" onsubmit="Settings.saveEmail(event)"><label>Current email<input value="${esc(context().session.user.email||'')}" disabled></label><label>New email<input name="email" type="email" autocomplete="email" required></label><button class="btn primary">Update email</button></form></section>
       <section class="card settings-section"><h2>Password</h2><p class="sub">We verify your current password before replacing it.</p><form class="stack-form" onsubmit="Settings.savePassword(event)"><label>Current password<input name="current" type="password" autocomplete="current-password" required minlength="8"></label><label>New password<input name="password" type="password" autocomplete="new-password" required minlength="8"></label><label>Confirm new password<input name="confirm" type="password" autocomplete="new-password" required minlength="8"></label><button class="btn primary">Change password</button></form></section>
-      <section class="card settings-section"><h2>Session</h2><p class="sub">Sign out of Greenhouse Ledger on this device.</p><button class="btn" onclick="LedgerAuth.signOut()">Sign out</button></section>
+      <section class="card settings-section"><h2>${demo?'Demo session':'Session'}</h2><p class="sub">${demo?'Signing out clears the greenhouse workspace created during this demonstration. The reusable demo login remains available.':'Sign out of Greenhouse Ledger on this device.'}</p><button class="btn ${demo?'primary':''}" onclick="LedgerAuth.signOut()">${demo?'Sign out and reset demo':'Sign out'}</button></section>
     </div>`;
   }
   function brandMarkup(p,canBrand){
@@ -84,6 +85,7 @@
       <div id="brand-preview">${previewMarkup(p,image)}</div><div id="settings-status" class="settings-status" aria-live="polite"></div></section>`;
   }
   function emailMarkup(){
+    if(context().isDemo)return `<section class="card settings-section"><div class="settings-heading"><div><h2>Email delivery</h2><p class="sub">External email is intentionally disabled for the reusable demo account.</p></div><span class="status-badge status-pending">Demo mode</span></div><div class="sync-notice"><strong>Safe demonstration:</strong> create a link-only invitation to show the invitation lifecycle without contacting a real recipient.</div><div class="settings-facts"><span><small>Invitation lifetime</small><strong>7 days</strong></span><span><small>Acceptance</small><strong>Single-use and email-locked</strong></span><span><small>Reset behavior</small><strong>Invitations clear with the demo workspace</strong></span></div></section>`;
     const invitations=CloudLedger.getData().invitations||[];
     const domainBlocked=invitations.some(item=>/can only send testing emails|verify a domain/i.test(item.delivery_error||''));
     const sent=invitations.some(item=>item.sent_at);
@@ -94,7 +96,7 @@
   }
   function aboutMarkup(){
     const contact=org().contact_email;
-    return `<div class="settings-grid"><section class="card settings-section"><h2>Greenhouse Ledger</h2><p class="sub">Private inventory and greenhouse operations workspace.</p><div class="settings-facts"><span><small>Version</small><strong>1.10.0</strong></span><span><small>Product phase</small><strong>Phase 20 · Business settings</strong></span><span><small>Workspace role</small><strong>${esc(context().role)}</strong></span><span><small>Support contact</small><strong>${esc(contact||'Not configured')}</strong></span></div></section><section class="card settings-section"><h2>Pilot readiness</h2><p class="sub">Before onboarding a real greenhouse, publish the support contact, privacy policy, terms of use, and pilot agreement.</p><div class="settings-facts"><span><small>Privacy policy</small><strong>Not published</strong></span><span><small>Terms of use</small><strong>Not published</strong></span><span><small>Release notes</small><strong>Phases 1–20 tracked in the Product Bible</strong></span></div></section></div>`;
+    return `<div class="settings-grid"><section class="card settings-section"><h2>Greenhouse Ledger</h2><p class="sub">Private inventory and greenhouse operations workspace.</p><div class="settings-facts"><span><small>Version</small><strong>1.11.0</strong></span><span><small>Product phase</small><strong>Phase 21 · Fresh-start demo</strong></span><span><small>Workspace role</small><strong>${esc(context().role)}</strong></span><span><small>Account mode</small><strong>${context().isDemo?'Reusable demo':'Standard workspace'}</strong></span><span><small>Support contact</small><strong>${esc(contact||'Not configured')}</strong></span></div></section><section class="card settings-section"><h2>Pilot readiness</h2><p class="sub">Before onboarding a real greenhouse, publish the support contact, privacy policy, terms of use, and pilot agreement.</p><div class="settings-facts"><span><small>Privacy policy</small><strong>Not published</strong></span><span><small>Terms of use</small><strong>Not published</strong></span><span><small>Release notes</small><strong>Phases 1–21 tracked in the Product Bible</strong></span></div></section></div>`;
   }
   function previewMarkup(p,image){
     const text=safeForeground(p.background);

@@ -24,6 +24,8 @@ Deno.serve(async req=>{
   const {invitation_id}=await req.json().catch(()=>({}));
   if(!invitation_id)return json({error:"Invitation is required."},400);
   const admin=createClient(url,serviceRole,{auth:{persistSession:false}});
+  const {data:demoAccount}=await admin.from("demo_accounts").select("enabled").eq("profile_id",user.id).maybeSingle();
+  if(demoAccount?.enabled)return json({error:"Invitation email is disabled in demo mode. Copy the private link instead."},403);
   const {data:invitation,error:inviteError}=await admin.from("organization_invitations")
     .select("id,organization_id,email,role,code,expires_at,accepted_at,revoked_at,organization:organizations(name)")
     .eq("id",invitation_id).single();
