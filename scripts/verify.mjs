@@ -33,6 +33,7 @@ if (!failures.length) pass(`${javascript.length} JavaScript files pass syntax va
 const index = read('index.html');
 const worker = read('service-worker.js');
 const settings = read('settings.js');
+const packageJson = JSON.parse(read('package.json'));
 const auth = read('auth.js');
 const cloudLedger = read('cloud-ledger.js');
 const invitationMigration = read('supabase/migrations/20260812150000_phase_13_team_invitations.sql');
@@ -52,6 +53,14 @@ const invitationFunction = read('supabase/functions/send-organization-invitation
 const demoResetFunction = read('supabase/functions/reset-demo-workspace/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
 const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => match[1]).filter(path => path !== '');
+
+if (!index.includes(`pilot ${packageJson.version}`) || !settings.includes(`<strong>${packageJson.version}</strong>`)) {
+  fail('The footer and About settings version must match package.json');
+} else if (!/greenhouse-ledger-v21-catalog-interactions/.test(worker)) {
+  fail('The Phase 21 catalog hotfix must invalidate the previous offline app shell');
+} else {
+  pass('Release labels are synchronized and the catalog hotfix refreshes the offline app shell');
+}
 
 for (const path of [...new Set([...localScripts, ...shellAssets])]) {
   if (!existsSync(join(root, path))) fail(`Referenced PWA asset is missing: ${path}`);
@@ -109,6 +118,12 @@ if (!/Add one plant/.test(catalogOnboarding) || !/Choose starter plants/.test(ca
   fail('Phase 15 must offer three plain-language catalog setup paths');
 } else if (!/A CSV is a simple spreadsheet file/.test(catalogOnboarding) || !/container_size/.test(catalogOnboarding)) {
   fail('Spreadsheet import must explain CSV and support sellable container sizes');
+} else if (!/function toggleStarter\(id\)[\s\S]*renderContent\(\)[\s\S]*requestAnimationFrame\(openStarters\)/.test(catalogOnboarding)) {
+  fail('Starter product selection must rerender the live catalog and reopen the selection panel');
+} else if (/await CloudLedger\.load\(\);render\(\)/.test(catalogOnboarding) || (catalogOnboarding.match(/await CloudLedger\.load\(\);renderContent\(\)/g)||[]).length !== 4) {
+  fail('Catalog mutations must refresh the visible setup screen instead of discarding generated markup');
+} else if (!/\.catalog-manual-form \[name=["']common_name["']\]/.test(catalogOnboarding) || !/aria-pressed=/.test(catalogOnboarding)) {
+  fail('Catalog onboarding must target the manual form precisely and expose starter selection state');
 } else if (!/status in \('active','archived'\)/.test(visualCatalogMigration) || !/filter\(item=>item\.status!==['"]archived['"]\)/.test(cloudLedger)) {
   fail('Archived catalog products must remain stored but unavailable for new inventory');
 } else {
@@ -147,7 +162,7 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-fresh-start-demo)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions))/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
