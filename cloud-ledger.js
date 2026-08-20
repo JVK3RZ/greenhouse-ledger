@@ -1,6 +1,8 @@
 (function(){
   const STAGES = ['propagation','seedling','vegetative','finishing','retail_ready','dormant'];
-  let data = {locations:[],catalog:[],batches:[],transactions:[],counts:[],tasks:[],issues:[],members:[],invitations:[],activity:[],loading:false,offline:false,error:null};
+  const emptyData = (loading=false) => ({locations:[],catalog:[],batches:[],transactions:[],counts:[],tasks:[],issues:[],members:[],invitations:[],activity:[],loading,offline:false,error:null});
+  let data = emptyData();
+  let loadRequest = 0;
   let inventoryTool = 'single';
   let activityFilters = {days:'30',actor:'',type:''};
   let activityVisible = 25;
@@ -54,7 +56,8 @@
   }
 
   async function load(){
-    data.loading=true; data.error=null;
+    const request=++loadRequest;
+    data=emptyData(true);
     const org=organizationId();
     const [locations,catalog,batches,transactions,counts,tasks,issues,members,invitations,activity]=await Promise.all([
       client().from('locations').select('*').eq('organization_id',org).order('name'),
@@ -68,6 +71,7 @@
       client().from('organization_invitations').select('*').eq('organization_id',org).order('created_at',{ascending:false}),
       client().from('activity_logs').select('*, actor:profiles(display_name)').eq('organization_id',org).order('created_at',{ascending:false}).limit(200)
     ]);
+    if(request!==loadRequest||org!==organizationId())return;
     const failed=[locations,catalog,batches,transactions,counts,tasks,issues,members,invitations,activity].find(result=>result.error);
     if(failed){
       const cached=await loadData(`cloud-${org}`,null);
@@ -78,6 +82,8 @@
     data={locations:locations.data||[],catalog:catalog.data||[],batches:batches.data||[],transactions:transactions.data||[],counts:counts.data||[],tasks:tasks.data||[],issues:issues.data||[],members:members.data||[],invitations:invitations.data||[],activity:activity.data||[],loading:false,offline:false,error:null};
     await saveData(`cloud-${org}`,data);
   }
+
+  function reset(){loadRequest+=1;data=emptyData(true);activityFilters={days:'30',actor:'',type:''};activityVisible=25;}
 
   async function refresh(message){
     await load();
@@ -313,5 +319,5 @@
   async function replaceInvite(id){const original=data.invitations.find(i=>i.id===id);if(!original)return;const {data:replacement,error}=await client().from('organization_invitations').insert({organization_id:organizationId(),email:original.email,role:original.role}).select().single();if(error)return showToast(error.message);await refresh('Replacement invitation created');await copyInvite(replacement.code);}
   async function uploadBatchPhoto(event,batchId){const file=event.target.files[0];if(!file)return;const path=`${organizationId()}/batches/${batchId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);if(uploaded.error)return showToast(uploaded.error.message);const {error}=await client().rpc('set_inventory_batch_photo',{target_batch_id:batchId,target_photo_path:path});if(error){await client().storage.from('greenhouse-photos').remove([path]);return showToast(error.message);}await refresh('Batch photo uploaded');}
 
-  window.CloudLedger={load,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,correctBatch,filterActivity,showMoreActivity,setInventoryTool,addBulkRow,bulkReceive,startCount,saveCountLine,finalizeCount,cancelCount,reportIssue,updateIssue,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,uploadBatchPhoto,getData:()=>data};
+  window.CloudLedger={load,reset,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,correctBatch,filterActivity,showMoreActivity,setInventoryTool,addBulkRow,bulkReceive,startCount,saveCountLine,finalizeCount,cancelCount,reportIssue,updateIssue,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,uploadBatchPhoto,getData:()=>data};
 })();
