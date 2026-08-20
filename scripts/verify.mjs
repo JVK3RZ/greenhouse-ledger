@@ -49,6 +49,7 @@ const businessSettingsMigration = read('supabase/migrations/20260813171610_phase
 const demoMigration = read('supabase/migrations/20260814183000_phase_21_fresh_start_demo_account.sql');
 const multiOrganizationMigration = read('supabase/migrations/20260817200000_phase_22_multi_organization_readiness.sql');
 const ownerAdministrationMigration = read('supabase/migrations/20260820152000_phase_23_owner_administration.sql');
+const sharesOrganizationPermissionRepair = read('supabase/migrations/20260820172258_restore_shares_organization_execute_permission.sql');
 const platformAdmin = read('platform-admin.js');
 const dataPortability = read('data-portability.js');
 const catalogOnboarding = read('catalog-onboarding.js');
@@ -95,6 +96,8 @@ if (!/get_platform_admin_overview/.test(platformAdmin) || !/update_organization_
   fail('Every platform administration action must leave immutable audit history');
 } else if (/inventory_batches|plant_catalog|care_tasks/.test(ownerAdministrationMigration.match(/create or replace function public\.get_platform_admin_organization[\s\S]*?\$\$;/)?.[0]||'')) {
   fail('Platform organization detail must not expose customer inventory or operations');
+} else if (!/revoke execute on function private\.shares_organization\(uuid\) from public, anon/.test(sharesOrganizationPermissionRepair) || !/grant execute on function private\.shares_organization\(uuid\) to authenticated/.test(sharesOrganizationPermissionRepair)) {
+  fail('Authenticated profile RLS must retain execute access to the shared-organization helper');
 } else {
   pass('Owner administration is allowlisted, entitlement-enforced, staff-limited, auditable, and inventory-isolated');
 }
