@@ -30,6 +30,14 @@
     return String(value).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   }
 
+  function organizationAccessAllowed(entitlement){
+    if(!entitlement)return false;
+    if(entitlement.access_status==='active')return true;
+    if(entitlement.access_status==='trialing')return Boolean(entitlement.trial_ends_at&&new Date(entitlement.trial_ends_at)>new Date());
+    if(entitlement.access_status==='grace_period')return !entitlement.current_period_end||new Date(entitlement.current_period_end)>new Date();
+    return false;
+  }
+
   function authMarkup(mode='signin', message=''){
     const signingUp = mode === 'signup';
     const rememberedLogin = rememberSession ? localStorage.getItem(LOGIN_KEY) || '' : '';
@@ -160,16 +168,19 @@
     const profileResult = await client.from('profiles').select('username,display_name').eq('id',session.user.id).single();
     if(profileResult.error){ renderAuth('signin',profileResult.error.message); return; }
     if(!profileResult.data.username){ renderUsername(); return; }
-    const {data:memberships,error} = await client.from('organization_members')
-      .select('role, organization:organizations(id,name,business_type,contact_email,contact_phone,address_line_1,address_line_2,city,region,postal_code,country_code,website_url,currency_code,timezone,low_stock_threshold,quantity_label,sku_prefix,batch_prefix,brand_primary,brand_accent,brand_background,brand_logo_path)')
-      .eq('profile_id',session.user.id);
-    if(error){ renderAuth('signin',error.message); return; }
+    const [membershipResult,administratorResult]=await Promise.all([
+      client.rpc('list_account_organizations'),
+      client.rpc('is_platform_administrator')
+    ]);
+    if(membershipResult.error){ renderAuth('signin',membershipResult.error.message); return; }
+    if(administratorResult.error){ renderAuth('signin',administratorResult.error.message); return; }
+    const memberships=Array.isArray(membershipResult.data)?membershipResult.data:[];
     if(!memberships.length){ renderOrganization(); return; }
     const storageKey=`${ACTIVE_ORGANIZATION_KEY}-${session.user.id}`;
     const requested=preferredOrganizationId||localStorage.getItem(storageKey);
     const active=memberships.find(item=>item.organization?.id===requested)||memberships[0];
     localStorage.setItem(storageKey,active.organization.id);
-    context = {session,profile:{...session.user,...profileResult.data},organization:active.organization,role:active.role,memberships,acceptedInvitation,isDemo:demoAccount};
+    context = {session,profile:{...session.user,...profileResult.data},organization:active.organization,role:active.role,memberships,entitlement:active.entitlement,accessBlocked:!organizationAccessAllowed(active.entitlement),acceptedInvitation,isDemo:demoAccount,isPlatformAdmin:administratorResult.data===true};
     creatingAdditionalOrganization=false;
     onReady(context);
   }
@@ -212,7 +223,7 @@
     const membership=context.memberships.find(item=>item.organization?.id===organizationId);
     if(!membership){alert('You no longer have access to that organization.');return;}
     localStorage.setItem(`${ACTIVE_ORGANIZATION_KEY}-${context.session.user.id}`,organizationId);
-    context={...context,organization:membership.organization,role:membership.role,acceptedInvitation:null};
+    context={...context,organization:membership.organization,role:membership.role,entitlement:membership.entitlement,accessBlocked:!organizationAccessAllowed(membership.entitlement),acceptedInvitation:null};
     window.CloudLedger?.reset?.();
     if(typeof window.render==='function')window.render();
     await onReady(context);
