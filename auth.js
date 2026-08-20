@@ -38,6 +38,8 @@
     return false;
   }
 
+  function membershipAccessAllowed(membership){return membership?.status!=='suspended'&&organizationAccessAllowed(membership?.entitlement);}
+
   function authMarkup(mode='signin', message=''){
     const signingUp = mode === 'signup';
     const rememberedLogin = rememberSession ? localStorage.getItem(LOGIN_KEY) || '' : '';
@@ -180,7 +182,7 @@
     const requested=preferredOrganizationId||localStorage.getItem(storageKey);
     const active=memberships.find(item=>item.organization?.id===requested)||memberships[0];
     localStorage.setItem(storageKey,active.organization.id);
-    context = {session,profile:{...session.user,...profileResult.data},organization:active.organization,role:active.role,memberships,entitlement:active.entitlement,accessBlocked:!organizationAccessAllowed(active.entitlement),acceptedInvitation,isDemo:demoAccount,isPlatformAdmin:administratorResult.data===true};
+    context = {session,profile:{...session.user,...profileResult.data},organization:active.organization,role:active.role,membershipStatus:active.status||'active',memberships,entitlement:active.entitlement,accessBlocked:!membershipAccessAllowed(active),acceptedInvitation,isDemo:demoAccount,isPlatformAdmin:administratorResult.data===true};
     creatingAdditionalOrganization=false;
     onReady(context);
   }
@@ -223,7 +225,7 @@
     const membership=context.memberships.find(item=>item.organization?.id===organizationId);
     if(!membership){alert('You no longer have access to that organization.');return;}
     localStorage.setItem(`${ACTIVE_ORGANIZATION_KEY}-${context.session.user.id}`,organizationId);
-    context={...context,organization:membership.organization,role:membership.role,entitlement:membership.entitlement,accessBlocked:!organizationAccessAllowed(membership.entitlement),acceptedInvitation:null};
+    context={...context,organization:membership.organization,role:membership.role,membershipStatus:membership.status||'active',entitlement:membership.entitlement,accessBlocked:!membershipAccessAllowed(membership),acceptedInvitation:null};
     window.CloudLedger?.reset?.();
     if(typeof window.render==='function')window.render();
     await onReady(context);
@@ -244,6 +246,8 @@
     renderAuth();
   }
 
+  async function refreshContext(){const {data:{session}}=await client.auth.getSession();await routeSession(session,{prepareDemo:false,preferredOrganizationId:context?.organization?.id});}
+
   async function initialize(options){
     onReady = options.onReady;
     const invitationCode = new URL(location.href).searchParams.get('invite');
@@ -260,5 +264,5 @@
     });
   }
 
-  window.LedgerAuth = {client,initialize,signOut,startCreateOrganization,switchOrganization,getContext:()=>context,isDemo:()=>demoAccount};
+  window.LedgerAuth = {client,initialize,signOut,startCreateOrganization,switchOrganization,refreshContext,getContext:()=>context,isDemo:()=>demoAccount};
 })();
