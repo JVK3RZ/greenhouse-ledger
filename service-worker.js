@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v22-multi-organization';
+const CACHE_NAME = 'greenhouse-ledger-v23-owner-administration';
 const APP_SHELL = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const APP_SHELL = [
   './catalog-onboarding.js',
   './workspace-settings.js',
   './settings.js',
+  './platform-admin.js',
   './data-portability.js',
   './assets/icons/icon.svg',
   './assets/icons/icon-192.png',
