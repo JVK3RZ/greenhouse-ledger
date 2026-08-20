@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v21-catalog-interactions';
+const CACHE_NAME = 'greenhouse-ledger-v22-multi-organization';
 const APP_SHELL = [
   './',
   './index.html',

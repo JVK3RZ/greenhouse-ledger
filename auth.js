@@ -3,6 +3,7 @@
   const REMEMBER_KEY = 'greenhouse-ledger-remember';
   const LOGIN_KEY = 'greenhouse-ledger-login-id';
   const DEMO_SESSION_KEY = 'greenhouse-ledger-demo-session';
+  const ACTIVE_ORGANIZATION_KEY = 'greenhouse-ledger-active-organization';
   let rememberSession = localStorage.getItem(REMEMBER_KEY) === 'true';
   const authStorage = {
     getItem(key){ return (rememberSession ? localStorage : sessionStorage).getItem(key); },
@@ -23,6 +24,7 @@
   let demoAccount = false;
   let preparedSessionUser = null;
   let demoPreparation = null;
+  let creatingAdditionalOrganization = false;
 
   function escapeHtml(value){
     return String(value).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -50,16 +52,17 @@
     </div></div>`;
   }
 
-  function organizationMarkup(message=''){
+  function organizationMarkup(message='',additional=false){
     return `<div class="auth-shell"><div class="auth-card">
-      <div class="eyebrow">One last step</div>
-      <h1>Name your greenhouse</h1>
-      <p class="sub">This creates the private workspace that will contain your locations, inventory, staff, and tasks.</p>
+      <div class="eyebrow">${additional?'New organization':'One last step'}</div>
+      <h1>${additional?'Create another workspace':'Name your greenhouse'}</h1>
+      <p class="sub">This creates a separate private workspace for its own locations, inventory, staff, settings, and activity.</p>
       <form id="organization-form" class="auth-form">
         <label>Business or greenhouse name<input name="name" required minlength="2" maxlength="120" placeholder="Example: Twilight Garden Greenhouse" /></label>
         <button class="btn primary" type="submit">Create workspace</button>
       </form>
       ${message?`<p class="auth-message">${escapeHtml(message)}</p>`:''}
+      ${additional?'<button class="btn ghost" id="organization-cancel">Back to current workspace</button>':''}
       <button class="btn ghost" id="onboarding-signout">Sign out</button>
     </div></div>`;
   }
@@ -139,7 +142,7 @@
     try{await demoPreparation;}finally{demoPreparation=null;}
   }
 
-  async function routeSession(session,{prepareDemo=true,freshSignIn=false}={}){
+  async function routeSession(session,{prepareDemo=true,freshSignIn=false,preferredOrganizationId=null}={}){
     if(!session){ context=null; renderAuth(); return; }
     if(prepareDemo){
       try{await prepareDemoSession(session,freshSignIn);}
@@ -150,6 +153,7 @@
       acceptedInvitation=invitationPreview?{organizationName:invitationPreview.organization_name,role:invitationPreview.role}:null;
       const accepted = await client.rpc('accept_organization_invitation',{invitation_code:invitationCode});
       if(accepted.error){ renderAuth('signin',accepted.error.message); return; }
+      preferredOrganizationId=accepted.data;
       const cleanUrl=new URL(location.href); cleanUrl.searchParams.delete('invite'); history.replaceState({},'',cleanUrl);
       invitationPreview=null;
     }
@@ -158,10 +162,15 @@
     if(!profileResult.data.username){ renderUsername(); return; }
     const {data:memberships,error} = await client.from('organization_members')
       .select('role, organization:organizations(id,name,business_type,contact_email,contact_phone,address_line_1,address_line_2,city,region,postal_code,country_code,website_url,currency_code,timezone,low_stock_threshold,quantity_label,sku_prefix,batch_prefix,brand_primary,brand_accent,brand_background,brand_logo_path)')
-      .eq('profile_id',session.user.id).limit(1);
+      .eq('profile_id',session.user.id);
     if(error){ renderAuth('signin',error.message); return; }
     if(!memberships.length){ renderOrganization(); return; }
-    context = {session,profile:{...session.user,...profileResult.data},organization:memberships[0].organization,role:memberships[0].role,acceptedInvitation,isDemo:demoAccount};
+    const storageKey=`${ACTIVE_ORGANIZATION_KEY}-${session.user.id}`;
+    const requested=preferredOrganizationId||localStorage.getItem(storageKey);
+    const active=memberships.find(item=>item.organization?.id===requested)||memberships[0];
+    localStorage.setItem(storageKey,active.organization.id);
+    context = {session,profile:{...session.user,...profileResult.data},organization:active.organization,role:active.role,memberships,acceptedInvitation,isDemo:demoAccount};
+    creatingAdditionalOrganization=false;
     onReady(context);
   }
 
@@ -180,23 +189,33 @@
     await routeSession((await client.auth.getSession()).data.session);
   }
 
-  function renderOrganization(message=''){
-    document.getElementById('app').innerHTML = organizationMarkup(message);
+  function renderOrganization(message='',additional=creatingAdditionalOrganization){
+    creatingAdditionalOrganization=additional;
+    document.getElementById('app').innerHTML = organizationMarkup(message,additional);
     document.getElementById('organization-form').addEventListener('submit',createOrganization);
     document.getElementById('onboarding-signout').addEventListener('click',signOut);
+    document.getElementById('organization-cancel')?.addEventListener('click',()=>{creatingAdditionalOrganization=false;onReady(context);});
   }
 
   async function createOrganization(event){
     event.preventDefault();
     const name = String(new FormData(event.currentTarget).get('name')||'').trim();
-    const {data:{user}} = await client.auth.getUser();
-    const organization = {id:crypto.randomUUID(),name,created_by:user.id};
-    const {error:organizationError} = await client.from('organizations').insert(organization);
-    if(organizationError){ renderOrganization(organizationError.message); return; }
-    const {error:membershipError} = await client.from('organization_members')
-      .insert({organization_id:organization.id,profile_id:user.id,role:'owner'});
-    if(membershipError){ renderOrganization(membershipError.message); return; }
-    await routeSession((await client.auth.getSession()).data.session,{prepareDemo:false});
+    const {data:organizationId,error}=await client.rpc('create_organization_workspace',{workspace_name:name});
+    if(error){ renderOrganization(error.message); return; }
+    await routeSession((await client.auth.getSession()).data.session,{prepareDemo:false,preferredOrganizationId:organizationId});
+  }
+
+  function startCreateOrganization(){if(!context)return;creatingAdditionalOrganization=true;renderOrganization('',true);}
+
+  async function switchOrganization(organizationId){
+    if(!context||organizationId===context.organization.id)return;
+    const membership=context.memberships.find(item=>item.organization?.id===organizationId);
+    if(!membership){alert('You no longer have access to that organization.');return;}
+    localStorage.setItem(`${ACTIVE_ORGANIZATION_KEY}-${context.session.user.id}`,organizationId);
+    context={...context,organization:membership.organization,role:membership.role,acceptedInvitation:null};
+    window.CloudLedger?.reset?.();
+    if(typeof window.render==='function')window.render();
+    await onReady(context);
   }
 
   async function signOut(){
@@ -230,5 +249,5 @@
     });
   }
 
-  window.LedgerAuth = {client,initialize,signOut,getContext:()=>context,isDemo:()=>demoAccount};
+  window.LedgerAuth = {client,initialize,signOut,startCreateOrganization,switchOrganization,getContext:()=>context,isDemo:()=>demoAccount};
 })();

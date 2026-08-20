@@ -47,6 +47,7 @@ const recoveryMigration = read('supabase/migrations/20260812230000_phase_18_back
 const correctionsMigration = read('supabase/migrations/20260813013000_phase_19_record_corrections.sql');
 const businessSettingsMigration = read('supabase/migrations/20260813171610_phase_20_business_settings.sql');
 const demoMigration = read('supabase/migrations/20260814183000_phase_21_fresh_start_demo_account.sql');
+const multiOrganizationMigration = read('supabase/migrations/20260817200000_phase_22_multi_organization_readiness.sql');
 const dataPortability = read('data-portability.js');
 const catalogOnboarding = read('catalog-onboarding.js');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
@@ -56,10 +57,24 @@ const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => m
 
 if (!index.includes(`pilot ${packageJson.version}`) || !settings.includes(`<strong>${packageJson.version}</strong>`)) {
   fail('The footer and About settings version must match package.json');
-} else if (!/greenhouse-ledger-v21-catalog-interactions/.test(worker)) {
-  fail('The Phase 21 catalog hotfix must invalidate the previous offline app shell');
+} else if (!/greenhouse-ledger-v22-multi-organization/.test(worker)) {
+  fail('Phase 22 must invalidate the previous offline app shell');
 } else {
   pass('Release labels are synchronized and the catalog hotfix refreshes the offline app shell');
+}
+
+if (!/create_organization_workspace/.test(auth) || !/switchOrganization/.test(auth) || !/ACTIVE_ORGANIZATION_KEY/.test(auth)) {
+  fail('Phase 22 must create and switch organizations through the authenticated workspace flow');
+} else if (/\.limit\(1\)/.test(auth) || !/context\.memberships\.find/.test(auth)) {
+  fail('Sign-in and switching must consider every current organization membership');
+} else if (!/function reset\(\)/.test(cloudLedger) || !/request!==loadRequest\|\|org!==organizationId\(\)/.test(cloudLedger)) {
+  fail('Organization switching must clear prior tenant data and reject stale load results');
+} else if (!/security definer/.test(multiOrganizationMigration) || !/Authentication required/.test(multiOrganizationMigration) || !/revoke insert on table public\.organizations from authenticated/.test(multiOrganizationMigration)) {
+  fail('Organization creation must be atomic, authenticated, and unavailable through direct table insertion');
+} else if (!/organization_created/.test(multiOrganizationMigration) || !/grant execute on function public\.create_organization_workspace/.test(multiOrganizationMigration)) {
+  fail('Organization creation must be auditable and explicitly executable only by authenticated users');
+} else {
+  pass('Multi-organization creation, selection, stale-load protection, and tenant isolation are enforced');
 }
 
 for (const path of [...new Set([...localScripts, ...shellAssets])]) {
@@ -162,7 +177,7 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions))/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
