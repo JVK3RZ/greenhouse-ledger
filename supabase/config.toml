@@ -1,0 +1,8 @@
+[functions.create-billing-checkout]
+verify_jwt = true
+
+[functions.create-billing-portal]
+verify_jwt = true
+
+[functions.stripe-billing-webhook]
+verify_jwt = false
