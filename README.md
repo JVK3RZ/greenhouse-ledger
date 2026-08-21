@@ -2,7 +2,7 @@
 
 Greenhouse Ledger is an installable, multi-tenant greenhouse inventory and operations platform.
 
-Current pilot release candidate: `1.14.0` (Phase 24 organization employee management).
+Current pilot release candidate: `1.15.0` (Phase 25 subscription billing).
 
 ## Open the app
 
@@ -69,6 +69,10 @@ Phase 22 lets one account belong to multiple greenhouse organizations, create an
 Phase 23 adds a platform-owner-only administration dashboard for customer organizations, commercial plans, trials, access status, staff limits, internal support notes, and immutable administration history. Organization suspension is enforced by database membership checks and tenant-table write guards, including protected RPC mutations. Platform administration exposes membership and entitlement metadata but does not expose customer inventory. Existing organizations begin with active complimentary access; newly created organizations receive a 30-day trial until a platform owner changes their plan.
 
 Phase 24 adds organization-specific employee lifecycle management. Owners can promote or demote workers and managers, add additional owners, suspend or reactivate access, and remove members without deleting their historical activity. Managers can manage workers only. Database functions enforce active membership, seat limits, least-privilege role transitions, immutable staff audit entries, and the requirement that every organization retain at least one active owner.
+
+Phase 25 adds Stripe-hosted subscription checkout, an owner-only billing portal, configurable Pilot, Starter, and Growth price mappings, and signed webhook synchronization into the existing entitlement system. Stripe identifiers and webhook receipts remain private, subscription events are idempotent and order-aware, and the browser never receives provider secrets. Production activation requires Stripe price IDs, Edge Function secrets, webhook registration, and separate deployment approval.
+
+Phase 25 Edge Function secrets: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PILOT_PRICE_ID`, `STRIPE_STARTER_PRICE_ID`, `STRIPE_GROWTH_PRICE_ID`, and the existing `GREENHOUSE_LEDGER_SITE_URL`. Configure the Stripe webhook endpoint for `customer.subscription.created`, `customer.subscription.updated`, and `customer.subscription.deleted`; deploy `stripe-billing-webhook` without Supabase JWT verification because it authenticates Stripe’s raw request signature internally.
 
 ## Supabase
 

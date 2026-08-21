@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v24-employee-management';
+const CACHE_NAME = 'greenhouse-ledger-v25-subscription-billing';
 const APP_SHELL = [
   './',
   './index.html',

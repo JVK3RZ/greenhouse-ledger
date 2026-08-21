@@ -51,18 +51,22 @@ const multiOrganizationMigration = read('supabase/migrations/20260817200000_phas
 const ownerAdministrationMigration = read('supabase/migrations/20260820152000_phase_23_owner_administration.sql');
 const sharesOrganizationPermissionRepair = read('supabase/migrations/20260820172258_restore_shares_organization_execute_permission.sql');
 const employeeManagementMigration = read('supabase/migrations/20260820181458_phase_24_employee_management.sql');
+const billingMigration = read('supabase/migrations/20260820215654_phase_25_subscription_billing.sql');
 const platformAdmin = read('platform-admin.js');
 const dataPortability = read('data-portability.js');
 const catalogOnboarding = read('catalog-onboarding.js');
 const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
 const demoResetFunction = read('supabase/functions/reset-demo-workspace/index.ts');
+const checkoutFunction = read('supabase/functions/create-billing-checkout/index.ts');
+const portalFunction = read('supabase/functions/create-billing-portal/index.ts');
+const billingWebhookFunction = read('supabase/functions/stripe-billing-webhook/index.ts');
 const localScripts = [...index.matchAll(/<script[^>]+src=["']\.\/([^"']+)["']/g)].map(match => match[1]);
 const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => match[1]).filter(path => path !== '');
 
 if (!index.includes(`pilot ${packageJson.version}`) || !settings.includes(`<strong>${packageJson.version}</strong>`)) {
   fail('The footer and About settings version must match package.json');
-} else if (!/greenhouse-ledger-v24-employee-management/.test(worker)) {
-  fail('Phase 24 must invalidate the previous offline app shell');
+} else if (!/greenhouse-ledger-v25-subscription-billing/.test(worker)) {
+  fail('Phase 25 must invalidate the previous offline app shell');
 } else {
   pass('Release labels are synchronized and the catalog hotfix refreshes the offline app shell');
 }
@@ -117,6 +121,24 @@ if (!/create type public\.organization_member_status as enum \('active','suspend
   fail('Suspended employees must receive an explicit blocked-access experience');
 } else {
   pass('Employee roles, suspension, removal, seat limits, last-owner safety, and audit history are organization-scoped');
+}
+
+if (!/create table private\.organization_billing/.test(billingMigration) || !/create table private\.stripe_webhook_events/.test(billingMigration)) {
+  fail('Phase 25 must keep Stripe identifiers and webhook receipts outside the public Data API');
+} else if (!/stripe_event_id text/.test(billingMigration) || !/on conflict\(event_id\) do nothing/.test(billingMigration) || !/last_event_created/.test(billingMigration)) {
+  fail('Stripe subscription synchronization must be idempotent and reject stale event ordering');
+} else if (!/current_user not in \('service_role','postgres','supabase_admin'\)/.test(billingMigration) || !/grant execute on function public\.apply_stripe_subscription_event[\s\S]*to service_role/.test(billingMigration)) {
+  fail('Webhook entitlement synchronization must remain service-role only');
+} else if (!/Active owner access required/.test(checkoutFunction) || !/Billing is disabled in demo mode/.test(checkoutFunction) || !/subscription_data/.test(checkoutFunction)) {
+  fail('Subscription checkout must authenticate an active non-demo owner and bind organization metadata');
+} else if (!/Active owner access required/.test(portalFunction) || !/billingPortal\.sessions\.create/.test(portalFunction)) {
+  fail('Billing portal sessions must be created server-side for active owners');
+} else if (!/constructEventAsync/.test(billingWebhookFunction) || !/STRIPE_WEBHOOK_SECRET/.test(billingWebhookFunction) || !/apply_stripe_subscription_event/.test(billingWebhookFunction)) {
+  fail('Stripe webhooks must verify signatures before synchronizing entitlements');
+} else if (!/get_organization_billing_summary/.test(settings) || !/create-billing-checkout/.test(settings) || !/create-billing-portal/.test(settings)) {
+  fail('Organization owners must be able to inspect billing, start checkout, and open the customer portal');
+} else {
+  pass('Subscription checkout, portal access, signed webhooks, and entitlement synchronization are organization-scoped');
 }
 
 for (const path of [...new Set([...localScripts, ...shellAssets])]) {
@@ -219,7 +241,7 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization|23-owner-administration|24-employee-management)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization|23-owner-administration|24-employee-management|25-subscription-billing)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');

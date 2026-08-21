@@ -4,6 +4,8 @@
   let logoUrl='';
   let pendingLogo=null;
   let pendingLogoUrl='';
+  let billing=null;
+  let billingLoading=false;
 
   const context=()=>LedgerAuth.getContext();
   const org=()=>context().organization;
@@ -46,6 +48,8 @@
       const {data}=await LedgerAuth.client.storage.from('greenhouse-photos').createSignedUrl(path,3600);
       logoUrl=data?.signedUrl||'';
     }
+    const billingResult=new URL(location.href).searchParams.get('billing');
+    if(billingResult){showToast(billingResult==='success'?'Checkout completed. Subscription access will update after Stripe confirms payment.':'Checkout canceled. No billing changes were made.');history.replaceState({},'',location.pathname+location.hash);}
   }
   function brandLogoMarkup(){return logoUrl?`<img class="brand-logo" src="${esc(logoUrl)}" alt="${esc(org().name)} logo">`:'';}
   function toggleMenu(event){
@@ -57,15 +61,15 @@
     if(!menu.hidden) setTimeout(()=>document.addEventListener('click',closeMenu,{once:true}),0);
   }
   function closeMenu(){const menu=document.querySelector('.settings-menu');if(menu)menu.hidden=true;}
-  function open(next){section=next;activeTab='settings';render();}
+  function open(next){section=next;activeTab='settings';render();if(next==='billing')loadBilling();}
   function sectionButton(key,label){return `<button class="tab ${section===key?'active':''}" onclick="Settings.open('${key}')">${label}</button>`;}
 
   function renderMarkup(){
     const p=palette();
     const account=context().profile;
     const canBrand=['owner','manager'].includes(context().role);
-    return `<div class="section-label">Settings</div><div class="tabs settings-tabs">${sectionButton('account','Account & security')}${sectionButton('business','Business profile')}${sectionButton('email','Email & invitations')}${sectionButton('brand','Brand Studio')}${sectionButton('about','About')}</div>
-      ${section==='account'?accountMarkup(account):section==='business'?WorkspaceSettings.renderMarkup():section==='email'?emailMarkup():section==='about'?aboutMarkup():brandMarkup(p,canBrand)}`;
+    return `<div class="section-label">Settings</div><div class="tabs settings-tabs">${sectionButton('account','Account & security')}${sectionButton('business','Business profile')}${context().role==='owner'?sectionButton('billing','Plan & billing'):''}${sectionButton('email','Email & invitations')}${sectionButton('brand','Brand Studio')}${sectionButton('about','About')}</div>
+      ${section==='account'?accountMarkup(account):section==='business'?WorkspaceSettings.renderMarkup():section==='billing'?billingMarkup():section==='email'?emailMarkup():section==='about'?aboutMarkup():brandMarkup(p,canBrand)}`;
   }
   function accountMarkup(account){
     const demo=context().isDemo===true;
@@ -94,9 +98,31 @@
     return `<div class="settings-grid"><section class="card settings-section"><div class="settings-heading"><div><h2>Email delivery</h2><p class="sub">Status for invitations sent from this workspace.</p></div><span class="status-badge status-${badge}">${state}</span></div>${domainBlocked?'<div class="sync-notice offline"><strong>Verify a sending domain.</strong> Resend is currently in testing mode, so it can only email the account that created the API key.</div>':sent?'<div class="sync-notice"><strong>Email delivery is working.</strong> Invitation links remain available as a fallback.</div>':'<p class="report-note">No delivery result is available yet. Create an invitation and choose Send by email to test the current configuration.</p>'}<div class="settings-facts"><span><small>Invitation lifetime</small><strong>7 days</strong></span><span><small>Acceptance</small><strong>Single-use and email-locked</strong></span><span><small>Fallback</small><strong>Copy and message the private link</strong></span></div></section>
       <section class="card settings-section"><h2>Domain setup checklist</h2><ol class="settings-checklist"><li>Purchase or use a business domain.</li><li>Add the domain in Resend and copy its DNS records.</li><li>Add those records at the domain provider.</li><li>After verification, change <code>INVITATION_FROM_EMAIL</code> to an address on that domain.</li><li>Send a new test invitation and confirm delivery.</li></ol><p class="report-note">API keys and provider secrets remain protected in Supabase and are never shown in the browser.</p></section></div>`;
   }
+  function billingMarkup(){
+    if(context().role!=='owner')return `<section class="card settings-section"><h2>Plan & billing</h2><p class="sub">Only an active organization owner can manage billing.</p></section>`;
+    if(context().isDemo)return `<section class="card settings-section"><h2>Plan & billing</h2><p class="sub">Checkout is disabled in reusable demo mode.</p></section>`;
+    const value=billing||context().entitlement||{};
+    const period=value.current_period_end?new Date(value.current_period_end).toLocaleDateString():'Not scheduled';
+    const trial=value.trial_ends_at?new Date(value.trial_ends_at).toLocaleDateString():'None';
+    const plans=[['pilot','Founding Pilot','$29 / month','Up to 5 active employees'],['starter','Starter','$49 / month','Up to 10 active employees'],['growth','Growth','$99 / month','Up to 25 active employees']];
+    return `<div class="settings-grid"><section class="card settings-section"><div class="settings-heading"><div><h2>Current subscription</h2><p class="sub">Stripe controls payment details; Greenhouse Ledger enforces access and staff limits.</p></div><span class="status-badge status-${value.access_status==='active'?'accepted':'pending'}">${esc(String(value.access_status||'loading').replaceAll('_',' '))}</span></div><div class="settings-facts"><span><small>Plan</small><strong>${esc(String(value.plan||'trial').replaceAll('_',' '))}</strong></span><span><small>Staff limit</small><strong>${Number(value.staff_limit||0)}</strong></span><span><small>Trial ends</small><strong>${esc(trial)}</strong></span><span><small>Billing period ends</small><strong>${esc(period)}</strong></span><span><small>Renewal</small><strong>${value.cancel_at_period_end?'Cancels at period end':'Continues automatically'}</strong></span></div>${value.has_customer?'<button class="btn primary" onclick="Settings.openBillingPortal()">Manage billing</button>':''}${billingLoading?'<p class="report-note">Refreshing billing status…</p>':''}</section><section class="card settings-section"><h2>Choose a plan</h2><p class="sub">Checkout opens on Stripe’s secure hosted page. Prices remain configurable before launch.</p><div class="billing-plans">${plans.map(([key,name,price,seats])=>`<div class="mini-row"><span><strong>${name}</strong><small>${price} · ${seats}</small></span><button class="btn small" onclick="Settings.startCheckout('${key}')">Choose</button></div>`).join('')}</div><p class="report-note">Custom plans remain available through Greenhouse Ledger support.</p></section></div>`;
+  }
+  async function loadBilling(){
+    if(billingLoading||context().role!=='owner')return;billingLoading=true;
+    const {data,error}=await LedgerAuth.client.rpc('get_organization_billing_summary',{target_organization_id:org().id});
+    billingLoading=false;if(error){showToast(error.message);return;}billing=data;if(section==='billing')render();
+  }
+  async function startCheckout(plan){
+    const {data,error}=await LedgerAuth.client.functions.invoke('create-billing-checkout',{body:{organization_id:org().id,plan}});
+    if(error||!data?.url){showToast(data?.error||error?.message||'Checkout could not be started');return;}location.href=data.url;
+  }
+  async function openBillingPortal(){
+    const {data,error}=await LedgerAuth.client.functions.invoke('create-billing-portal',{body:{organization_id:org().id}});
+    if(error||!data?.url){showToast(data?.error||error?.message||'Billing management could not be opened');return;}location.href=data.url;
+  }
   function aboutMarkup(){
     const contact=org().contact_email;
-    return `<div class="settings-grid"><section class="card settings-section"><h2>Greenhouse Ledger</h2><p class="sub">Private inventory and greenhouse operations workspace.</p><div class="settings-facts"><span><small>Version</small><strong>1.14.0</strong></span><span><small>Product phase</small><strong>Phase 24 · Employee management</strong></span><span><small>Workspace role</small><strong>${esc(context().role)}</strong></span><span><small>Account mode</small><strong>${context().isDemo?'Reusable demo':'Standard workspace'}</strong></span><span><small>Support contact</small><strong>${esc(contact||'Not configured')}</strong></span></div></section><section class="card settings-section"><h2>Pilot readiness</h2><p class="sub">Before onboarding a real greenhouse, publish the support contact, privacy policy, terms of use, and pilot agreement.</p><div class="settings-facts"><span><small>Privacy policy</small><strong>Not published</strong></span><span><small>Terms of use</small><strong>Not published</strong></span><span><small>Release notes</small><strong>Phases 1–24 tracked in the Product Bible</strong></span></div></section></div>`;
+    return `<div class="settings-grid"><section class="card settings-section"><h2>Greenhouse Ledger</h2><p class="sub">Private inventory and greenhouse operations workspace.</p><div class="settings-facts"><span><small>Version</small><strong>1.15.0</strong></span><span><small>Product phase</small><strong>Phase 25 · Subscription billing</strong></span><span><small>Workspace role</small><strong>${esc(context().role)}</strong></span><span><small>Account mode</small><strong>${context().isDemo?'Reusable demo':'Standard workspace'}</strong></span><span><small>Support contact</small><strong>${esc(contact||'Not configured')}</strong></span></div></section><section class="card settings-section"><h2>Pilot readiness</h2><p class="sub">Before onboarding a real greenhouse, publish the support contact, privacy policy, terms of use, and pilot agreement.</p><div class="settings-facts"><span><small>Privacy policy</small><strong>Not published</strong></span><span><small>Terms of use</small><strong>Not published</strong></span><span><small>Release notes</small><strong>Phases 1–25 tracked in the Product Bible</strong></span></div></section></div>`;
   }
   function previewMarkup(p,image){
     const text=safeForeground(p.background);
@@ -148,5 +174,5 @@
     if(error){status(error.message,true);return;}if(oldPath)await LedgerAuth.client.storage.from('greenhouse-photos').remove([oldPath]);Object.assign(org(),data);logoUrl='';pendingLogo=null;pendingLogoUrl='';applyTheme(DEFAULTS);render();showToast('Branding reset');
   }
 
-  window.Settings={initialize,applyTheme,brandLogoMarkup,toggleMenu,open,render:renderMarkup,afterRender,preview,chooseLogo,saveUsername,saveEmail,savePassword,saveBrand,resetBrand};
+  window.Settings={initialize,applyTheme,brandLogoMarkup,toggleMenu,open,render:renderMarkup,afterRender,preview,chooseLogo,saveUsername,saveEmail,savePassword,saveBrand,resetBrand,startCheckout,openBillingPortal};
 })();
