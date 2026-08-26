@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v25-csv-price-alias';
+const CACHE_NAME = 'greenhouse-ledger-v26-care-automation-camera';
 const APP_SHELL = [
   './',
   './index.html',
