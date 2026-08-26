@@ -2,7 +2,7 @@
 
 Greenhouse Ledger is an installable, multi-tenant greenhouse inventory and operations platform.
 
-Current pilot release candidate: `1.15.1` (catalog-to-batch price prefill).
+Current pilot release candidate: `1.15.2` (CSV selling-price aliases).
 
 ## Open the app
 
@@ -53,6 +53,8 @@ Inventory staff can receive several batches in one atomic bulk receipt and run l
 New owners receive a five-step pilot setup checklist covering production zones, catalog, inventory, care work, and team access. An empty owner workspace can load a guarded sample greenhouse for demonstrations. Invited staff see their organization, role, reserved email, and expiration before accepting, followed by role-specific first-login guidance.
 
 Catalog setup presents products visually and distinguishes a reusable product definition from on-hand inventory. Owners can add one product, choose common starter products, or import a CSV spreadsheet through a plain-language guided flow. Container sizes and active/archive status allow one plant variety to be sold in multiple formats without deleting historical inventory references.
+
+CSV imports accept either `default_price` or `unit_price` as the selling-price heading. Both map to the catalog product's `default_price`; the downloadable template continues to use the preferred `default_price` heading. A file must not include both aliases at once.
 
 When inventory staff select—or change—the catalog product while receiving one or several batches, its default selling price prefills the batch Unit Price. The batch price remains editable, products without a default stay blank, and Unit Cost remains shipment-specific. Batch edits never rewrite the catalog default.
 

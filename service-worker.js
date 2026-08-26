@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v25-batch-price-prefill';
+const CACHE_NAME = 'greenhouse-ledger-v25-csv-price-alias';
 const APP_SHELL = [
   './',
   './index.html',
