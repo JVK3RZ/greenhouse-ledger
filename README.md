@@ -54,7 +54,7 @@ New owners receive a five-step pilot setup checklist covering production zones, 
 
 Catalog setup presents products visually and distinguishes a reusable product definition from on-hand inventory. Owners can add one product, choose common starter products, or import a CSV spreadsheet through a plain-language guided flow. Container sizes and active/archive status allow one plant variety to be sold in multiple formats without deleting historical inventory references.
 
-When inventory staff select a catalog product while receiving one or several batches, its default selling price prefills the batch Unit Price. The batch price remains editable, products without a default stay blank, and Unit Cost remains shipment-specific. Batch edits never rewrite the catalog default.
+When inventory staff select—or change—the catalog product while receiving one or several batches, its default selling price prefills the batch Unit Price. The batch price remains editable, products without a default stay blank, and Unit Cost remains shipment-specific. Batch edits never rewrite the catalog default.
 
 Cloud workspace backups contain organization-scoped database records and may include staff names and invitation email addresses. Store exported JSON files securely. Database photo paths are included, but binary photo files are not embedded.
 
