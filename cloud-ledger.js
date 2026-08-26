@@ -15,7 +15,8 @@
   const activeCatalog = () => data.catalog.filter(item=>item.status!=='archived');
   const codeHint = (kind,fallback) => {const prefix=LedgerAuth.getContext().organization[kind];return prefix?`${prefix}-...`:fallback;};
   const catalogDefaultPrice = item => item?.default_price == null ? '' : String(item.default_price);
-  const catalogOptions = () => activeCatalog().map(item=>`<option value="${esc(item.id)}" data-default-price="${esc(catalogDefaultPrice(item))}">${esc([item.common_name,item.container_size].filter(Boolean).join(' · '))}</option>`).join('');
+  const catalogOptions = () => activeCatalog().map(item=>`<option value="${esc(item.id)}" data-default-price="${esc(catalogDefaultPrice(item))}" data-watering-days="${item.watering_days||''}" data-feeding-days="${item.feeding_days||''}">${esc([item.common_name,item.container_size].filter(Boolean).join(' · '))}</option>`).join('');
+  const catalogCareSummary = item => [item?.watering_days?`Water every ${item.watering_days} days`:'',item?.feeding_days?`Feed every ${item.feeding_days} days`:''].filter(Boolean).join(' · ')||'No watering or feeding schedule in catalog';
 
   function bulkReceiptRow(){
     return `<div class="bulk-receive-row">
@@ -26,6 +27,7 @@
       <label>Batch code<input name="batch_code" placeholder="${esc(codeHint('batch_prefix','optional'))}"></label>
       <label>Unit cost<input name="unit_cost" type="number" min="0" step="0.01"></label>
       <label>Unit price<input name="unit_price" type="number" min="0" step="0.01" value="${esc(catalogDefaultPrice(activeCatalog()[0]))}"></label>
+      <label class="care-plan-option"><span>Care tasks</span><span><input name="create_care_tasks" type="checkbox" ${activeCatalog()[0]?.watering_days||activeCatalog()[0]?.feeding_days?'':'disabled'}> Create recurring tasks</span><small class="care-plan-summary">${esc(catalogCareSummary(activeCatalog()[0]))}</small></label>
       <button class="btn ghost small" type="button" onclick="this.closest('.bulk-receive-row').remove()">Remove</button>
     </div>`;
   }
@@ -156,6 +158,7 @@
           <label>Batch code<input name="batch_code" placeholder="${esc(codeHint('batch_prefix','optional'))}"></label>
           <label>Unit cost<input name="unit_cost" type="number" min="0" step="0.01"></label>
           <label>Unit price<input name="unit_price" type="number" min="0" step="0.01" value="${esc(catalogDefaultPrice(activeCatalog()[0]))}"></label>
+          <label class="care-plan-option"><span>Care tasks</span><span><input name="create_care_tasks" type="checkbox" ${activeCatalog()[0]?.watering_days||activeCatalog()[0]?.feeding_days?'':'disabled'}> Create recurring tasks</span><small class="care-plan-summary">${esc(catalogCareSummary(activeCatalog()[0]))}</small></label>
           <button class="btn primary" type="submit">Receive batch</button>
         </form>`:
         `<div class="empty">Add at least one location and one active catalog product before receiving inventory.</div>`}`:''}
@@ -215,7 +218,8 @@
         <label>Batch<select name="batch_id"><option value="">No specific batch</option>${data.batches.map(b=>option(b.id,[b.plant_catalog?.common_name,b.batch_code].filter(Boolean).join(' · '))).join('')}</select></label>
         <label>Production zone<select name="location_id"><option value="">No specific zone</option>${data.locations.map(l=>option(l.id,l.name)).join('')}</select></label>
         <label class="issue-description">What did you observe?<textarea name="description" maxlength="2000" rows="2" placeholder="Symptoms, affected area, and any immediate action"></textarea></label>
-        <label class="btn small photo-label">Add photo<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+        <label class="btn small photo-label">Take photo<input name="camera_photo" type="file" accept="image/*" capture="environment"></label>
+        <label class="btn small photo-label">Choose photo<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
         <button class="btn primary" type="submit">Report issue</button>
       </form>`:'<div class="empty">Add a production zone or receive a batch before reporting a plant-health issue.</div>'}
       <div class="issue-list">${data.issues.length?data.issues.map(issue=>{
@@ -268,13 +272,18 @@
     const {error}=await client().from('plant_catalog').insert(payload); if(error)return showToast(error.message); await refresh('Catalog plant added');
   }
   function applyCatalogDefaultPrice(select){
-    const price=select.closest('.bulk-receive-row,form')?.querySelector('[name="unit_price"]');
+    const container=select.closest('.bulk-receive-row,form');
+    const price=container?.querySelector('[name="unit_price"]');
     if(price)price.value=select.selectedOptions[0]?.dataset.defaultPrice||'';
+    const selected=select.selectedOptions[0];
+    const schedule=[selected?.dataset.wateringDays?`Water every ${selected.dataset.wateringDays} days`:'',selected?.dataset.feedingDays?`Feed every ${selected.dataset.feedingDays} days`:''].filter(Boolean);
+    const summary=container?.querySelector('.care-plan-summary'); if(summary)summary.textContent=schedule.join(' · ')||'No watering or feeding schedule in catalog';
+    const toggle=container?.querySelector('[name="create_care_tasks"]'); if(toggle){toggle.disabled=!schedule.length;if(!schedule.length)toggle.checked=false;}
   }
   async function addBatch(event){
     event.preventDefault(); const form=new FormData(event.currentTarget); const quantity=Number(form.get('quantity'));
-    const payload={target_organization_id:organizationId(),target_plant_catalog_id:form.get('plant_catalog_id'),target_location_id:form.get('location_id'),starting_quantity:quantity,target_stage:form.get('stage'),target_batch_code:String(form.get('batch_code')||'').trim()||null,target_unit_cost:form.get('unit_cost')?Number(form.get('unit_cost')):null,target_unit_price:form.get('unit_price')?Number(form.get('unit_price')):null};
-    const {error}=await client().rpc('receive_inventory_batch',payload); if(error)return showToast(error.message); await refresh('Inventory batch received');
+    const payload={target_organization_id:organizationId(),target_plant_catalog_id:form.get('plant_catalog_id'),target_location_id:form.get('location_id'),starting_quantity:quantity,target_stage:form.get('stage'),target_batch_code:String(form.get('batch_code')||'').trim()||null,target_unit_cost:form.get('unit_cost')?Number(form.get('unit_cost')):null,target_unit_price:form.get('unit_price')?Number(form.get('unit_price')):null,create_care_tasks:form.get('create_care_tasks')==='on'};
+    const {error}=await client().rpc('receive_inventory_batch_with_care',payload); if(error)return showToast(error.message); await refresh('Inventory batch received');
   }
   async function adjustStock(event,batchId){
     event.preventDefault(); const form=new FormData(event.currentTarget); let kind=form.get('transaction_type'); let delta=Number(form.get('quantity')); if(['sale','loss','adjustment_out'].includes(kind))delta*=-1; if(kind.startsWith('adjustment_'))kind='adjustment';
@@ -288,11 +297,11 @@
   async function bulkReceive(event){
     event.preventDefault();
     const items=[...event.currentTarget.querySelectorAll('.bulk-receive-row')].map(row=>{
-      const form=new FormData(); row.querySelectorAll('input,select').forEach(field=>form.set(field.name,field.value));
-      return {plant_catalog_id:form.get('plant_catalog_id'),location_id:form.get('location_id'),quantity:Number(form.get('quantity')),stage:form.get('stage'),batch_code:String(form.get('batch_code')||'').trim()||null,unit_cost:form.get('unit_cost')||null,unit_price:form.get('unit_price')||null};
+      const form=new FormData(); row.querySelectorAll('input,select').forEach(field=>form.set(field.name,field.type==='checkbox'?String(field.checked):field.value));
+      return {plant_catalog_id:form.get('plant_catalog_id'),location_id:form.get('location_id'),quantity:Number(form.get('quantity')),stage:form.get('stage'),batch_code:String(form.get('batch_code')||'').trim()||null,unit_cost:form.get('unit_cost')||null,unit_price:form.get('unit_price')||null,create_care_tasks:form.get('create_care_tasks')==='true'};
     });
     if(!items.length)return showToast('Add at least one batch to the receipt');
-    const {error}=await client().rpc('bulk_receive_inventory',{target_organization_id:organizationId(),receipt_items:items});
+    const {error}=await client().rpc('bulk_receive_inventory_with_care',{target_organization_id:organizationId(),receipt_items:items});
     if(error)return showToast(error.message); await refresh(`${items.length} batches received`);
   }
   async function startCount(event){event.preventDefault();const form=new FormData(event.currentTarget);const {error}=await client().rpc('start_inventory_count',{target_organization_id:organizationId(),target_location_id:form.get('location_id')||null,count_notes:String(form.get('notes')||'').trim()||null});if(error)return showToast(error.message);await refresh('Physical count started');}
@@ -305,7 +314,7 @@
     if(!batchId&&!locationId)return showToast('Choose a batch or production zone');
     const {data:issueId,error}=await client().rpc('report_plant_health_issue',{target_organization_id:organizationId(),target_batch_id:batchId,target_location_id:locationId,target_issue_type:form.get('issue_type'),target_severity:form.get('severity'),target_title:String(form.get('title')).trim(),target_description:String(form.get('description')||'').trim()||null});
     if(error)return showToast(error.message);
-    const file=form.get('photo');
+    const cameraFile=form.get('camera_photo'); const uploadedFile=form.get('photo'); const file=cameraFile?.size?cameraFile:uploadedFile;
     if(file?.size){
       const path=`${organizationId()}/issues/${issueId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;
       const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);

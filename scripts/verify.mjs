@@ -52,6 +52,7 @@ const ownerAdministrationMigration = read('supabase/migrations/20260820152000_ph
 const sharesOrganizationPermissionRepair = read('supabase/migrations/20260820172258_restore_shares_organization_execute_permission.sql');
 const employeeManagementMigration = read('supabase/migrations/20260820181458_phase_24_employee_management.sql');
 const billingMigration = read('supabase/migrations/20260820215654_phase_25_subscription_billing.sql');
+const receivingCareMigration = read('supabase/migrations/20260826140000_phase_26_receiving_care_tasks.sql');
 const platformAdmin = read('platform-admin.js');
 const dataPortability = read('data-portability.js');
 const catalogOnboarding = read('catalog-onboarding.js');
@@ -65,10 +66,24 @@ const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => m
 
 if (!index.includes(`pilot ${packageJson.version}`) || !settings.includes(`<strong>${packageJson.version}</strong>`)) {
   fail('The footer and About settings version must match package.json');
-} else if (!/greenhouse-ledger-v25-csv-price-alias/.test(worker)) {
+} else if (!/greenhouse-ledger-v26-care-automation-camera/.test(worker)) {
   fail('Phase 25 must invalidate the previous offline app shell');
 } else {
   pass('Release labels are synchronized and the catalog hotfix refreshes the offline app shell');
+}
+
+if (!/name="create_care_tasks" type="checkbox"/.test(cloudLedger) || !/catalogCareSummary/.test(cloudLedger)) {
+  fail('Receiving must ask whether to create care tasks and show the selected catalog schedule');
+} else if (!/receive_inventory_batch_with_care/.test(cloudLedger) || !/bulk_receive_inventory_with_care/.test(cloudLedger)) {
+  fail('Single and bulk receiving must submit the per-batch care-task choice');
+} else if ((receivingCareMigration.match(/security definer/g)||[]).length !== 2 || (receivingCareMigration.match(/Organization membership required/g)||[]).length !== 2) {
+  fail('Automated receiving functions must enforce organization membership internally');
+} else if (!/catalog\.watering_days is not null/.test(receivingCareMigration) || !/catalog\.feeding_days is not null/.test(receivingCareMigration) || !/recurrence_days/.test(receivingCareMigration)) {
+  fail('Only provided catalog intervals may create recurring watering and feeding tasks');
+} else if (!/capture="environment"/.test(cloudLedger) || !/cameraFile\?\.size\?cameraFile:uploadedFile/.test(cloudLedger)) {
+  fail('Observation reporting must support rear-camera capture while preserving existing-photo upload');
+} else {
+  pass('Receiving-time care automation is optional per batch and observation photos support camera capture');
 }
 
 if (!/create_organization_workspace/.test(auth) || !/switchOrganization/.test(auth) || !/ACTIVE_ORGANIZATION_KEY/.test(auth)) {
@@ -261,7 +276,7 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization|23-owner-administration|24-employee-management|25-(?:subscription-billing|batch-price-prefill|csv-price-alias))/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization|23-owner-administration|24-employee-management|25-(?:subscription-billing|batch-price-prefill|csv-price-alias)|26-care-automation-camera)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
