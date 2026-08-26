@@ -44,6 +44,8 @@ Supabase authentication provides a private organization workspace. Users choose 
 
 Operations also includes a plant-health issue log. Staff can report a pest, disease, damage, or environmental concern against a batch or production zone, optionally attach a protected photo, record its severity, and preserve follow-up notes as the issue moves from open to monitoring or resolved.
 
+During single or bulk receiving, staff can opt into recurring watering and feeding tasks sourced from the selected catalog product. Products without a matching care interval create no task. Observation reports offer separate controls to take a new rear-camera photo on supported mobile devices or choose an existing image.
+
 The Settings menu centralizes account security and business preferences. Organization owners and managers can publish a shared logo and accessible color palette through Brand Studio. Logos remain in private, organization-scoped storage, and the interface can suggest colors locally from a raster logo without uploading it until the user publishes the branding.
 
 The first standalone account creates the organization and becomes its owner. Owners and managers use **Team & Invitations** to create single-use, seven-day, email-locked worker or manager invitations; they can send or resend branded email, copy the same invitation as a private link, view its lifecycle status, revoke it, or replace an expired invitation. Email delivery runs only from the protected `send-organization-invitation` Edge Function and requires `RESEND_API_KEY`, `INVITATION_FROM_EMAIL`, and `GREENHOUSE_LEDGER_SITE_URL` secrets. Link sharing remains available when email delivery is not configured.
