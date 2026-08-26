@@ -53,6 +53,7 @@ const sharesOrganizationPermissionRepair = read('supabase/migrations/20260820172
 const employeeManagementMigration = read('supabase/migrations/20260820181458_phase_24_employee_management.sql');
 const billingMigration = read('supabase/migrations/20260820215654_phase_25_subscription_billing.sql');
 const receivingCareMigration = read('supabase/migrations/20260826140000_phase_26_receiving_care_tasks.sql');
+const demoSeedLockRepair = read('supabase/migrations/20260826182000_repair_demo_seed_organization_lock.sql');
 const platformAdmin = read('platform-admin.js');
 const dataPortability = read('data-portability.js');
 const catalogOnboarding = read('catalog-onboarding.js');
@@ -84,6 +85,14 @@ if (!/name="create_care_tasks" type="checkbox"/.test(cloudLedger) || !/catalogCa
   fail('Observation reporting must support rear-camera capture while preserving existing-photo upload');
 } else {
   pass('Receiving-time care automation is optional per batch and observation photos support camera capture');
+}
+
+if (!/security invoker/.test(demoSeedLockRepair) || !/pg_advisory_xact_lock\(hashtextextended\(target_organization_id::text, 0\)\)/.test(demoSeedLockRepair)) {
+  fail('Demo seeding must serialize concurrent loads without requiring organization table update permission');
+} else if (/organizations[^;]+for update/is.test(demoSeedLockRepair) || !/member\.role = 'owner'/.test(demoSeedLockRepair)) {
+  fail('Demo seeding must retain owner authorization without locking the organization row');
+} else {
+  pass('Demo greenhouse seeding remains owner-only and no longer requires organization update permission');
 }
 
 if (!/create_organization_workspace/.test(auth) || !/switchOrganization/.test(auth) || !/ACTIVE_ORGANIZATION_KEY/.test(auth)) {
