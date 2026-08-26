@@ -424,7 +424,7 @@ function render(){
     <div id="content"></div>
     <div class="footer">
       <span>${activeTab==='platform'?'Platform administration · customer inventory isolated':authContext.accessBlocked?'Organization access inactive':`${CloudLedger.getData().batches.reduce((sum,batch)=>sum+Number(batch.quantity||0),0)} inventory ${esc(WorkspaceSettings.quantityLabel())} · synchronized securely`}</span>
-      <span>Greenhouse Ledger · pilot 1.15.0</span>
+      <span>Greenhouse Ledger · pilot 1.15.1</span>
     </div>
     <input id="backup-file" type="file" accept="application/json,.json" onchange="importBackup(event)" hidden />
   `;
