@@ -65,7 +65,7 @@ const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => m
 
 if (!index.includes(`pilot ${packageJson.version}`) || !settings.includes(`<strong>${packageJson.version}</strong>`)) {
   fail('The footer and About settings version must match package.json');
-} else if (!/greenhouse-ledger-v25-subscription-billing/.test(worker)) {
+} else if (!/greenhouse-ledger-v25-batch-price-prefill/.test(worker)) {
   fail('Phase 25 must invalidate the previous offline app shell');
 } else {
   pass('Release labels are synchronized and the catalog hotfix refreshes the offline app shell');
@@ -209,6 +209,16 @@ if (!/Add one plant/.test(catalogOnboarding) || !/Choose starter plants/.test(ca
   pass('Visual catalog setup, starter products, and spreadsheet import are approachable and lifecycle-aware');
 }
 
+if (!/catalogDefaultPrice\s*=\s*item\s*=>\s*item\?\.default_price\s*==\s*null\s*\?\s*''/.test(cloudLedger) || (cloudLedger.match(/onchange="CloudLedger\.applyCatalogDefaultPrice\(this\)"/g)||[]).length !== 2) {
+  fail('Single and bulk batch receiving must source their initial Unit Price from the selected catalog product');
+} else if (!/selectedOptions\[0\]\?\.dataset\.defaultPrice\|\|''/.test(cloudLedger) || !/querySelector\('\[name="unit_price"\]'\)/.test(cloudLedger)) {
+  fail('Catalog price selection must update only the editable batch Unit Price and leave missing defaults blank');
+} else if (!/target_unit_cost:form\.get\('unit_cost'\)\?Number/.test(cloudLedger) || !/target_unit_price:form\.get\('unit_price'\)\?Number/.test(cloudLedger)) {
+  fail('Batch Unit Cost and Unit Price must remain independently editable per receipt');
+} else {
+  pass('Catalog default prices prefill editable batch prices without changing batch costs or catalog records');
+}
+
 if (!/Bulk receiving/.test(cloudLedger) || !/Physical stock count/.test(cloudLedger) || !/Approve adjustments/.test(cloudLedger)) {
   fail('Phase 16 must include bulk receiving and an approval-based physical count workflow');
 } else if ((stockCountMigration.match(/security definer/g)||[]).length !== 5 || !/revoke all on function public\.finalize_inventory_count/.test(stockCountMigration)) {
@@ -241,7 +251,7 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization|23-owner-administration|24-employee-management|25-subscription-billing)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization|23-owner-administration|24-employee-management|25-(?:subscription-billing|batch-price-prefill))/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');

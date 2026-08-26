@@ -2,7 +2,7 @@
 
 Greenhouse Ledger is an installable, multi-tenant greenhouse inventory and operations platform.
 
-Current pilot release candidate: `1.15.0` (Phase 25 subscription billing).
+Current pilot release candidate: `1.15.1` (catalog-to-batch price prefill).
 
 ## Open the app
 
@@ -54,6 +54,8 @@ New owners receive a five-step pilot setup checklist covering production zones, 
 
 Catalog setup presents products visually and distinguishes a reusable product definition from on-hand inventory. Owners can add one product, choose common starter products, or import a CSV spreadsheet through a plain-language guided flow. Container sizes and active/archive status allow one plant variety to be sold in multiple formats without deleting historical inventory references.
 
+When inventory staff select—or change—the catalog product while receiving one or several batches, its default selling price prefills the batch Unit Price. The batch price remains editable, products without a default stay blank, and Unit Cost remains shipment-specific. Batch edits never rewrite the catalog default.
+
 Cloud workspace backups contain organization-scoped database records and may include staff names and invitation email addresses. Store exported JSON files securely. Database photo paths are included, but binary photo files are not embedded.
 
 Phase 18 backups include physical-count and plant-health history. An owner can inspect a version 2 backup and atomically recover records that are missing from the same organization. Recovery never overwrites or deletes existing live records; memberships, invitations, generated activity logs, and photo binaries remain inspection-only. Greenhouse Ledger does not retain downloaded backup files. The recommended policy is to keep the three newest monthly backups plus one backup before a major import or recovery, then delete superseded files after 90 days unless the business requires longer retention.
@@ -81,3 +83,4 @@ The browser uses only the project's publishable key from `supabase-config.js`. D
 ## GitHub Pages
 
 The deployment workflow runs automatically after every push to `main`, verifies the repository quality gate, and publishes the static PWA to GitHub Pages. It can also be run manually from GitHub Actions when a redeployment is intentionally needed.
+ 

@@ -14,16 +14,18 @@
   const option = (value,text) => `<option value="${esc(value)}">${esc(text)}</option>`;
   const activeCatalog = () => data.catalog.filter(item=>item.status!=='archived');
   const codeHint = (kind,fallback) => {const prefix=LedgerAuth.getContext().organization[kind];return prefix?`${prefix}-...`:fallback;};
+  const catalogDefaultPrice = item => item?.default_price == null ? '' : String(item.default_price);
+  const catalogOptions = () => activeCatalog().map(item=>`<option value="${esc(item.id)}" data-default-price="${esc(catalogDefaultPrice(item))}">${esc([item.common_name,item.container_size].filter(Boolean).join(' · '))}</option>`).join('');
 
   function bulkReceiptRow(){
     return `<div class="bulk-receive-row">
-      <label>Product<select name="plant_catalog_id" required>${activeCatalog().map(item=>option(item.id,[item.common_name,item.container_size].filter(Boolean).join(' · '))).join('')}</select></label>
+      <label>Product<select name="plant_catalog_id" required onchange="CloudLedger.applyCatalogDefaultPrice(this)">${catalogOptions()}</select></label>
       <label>Location<select name="location_id" required>${data.locations.map(item=>option(item.id,item.name)).join('')}</select></label>
       <label>Quantity<input name="quantity" type="number" min="1" required></label>
       <label>Stage<select name="stage">${STAGES.map(stage=>option(stage,label(stage))).join('')}</select></label>
       <label>Batch code<input name="batch_code" placeholder="${esc(codeHint('batch_prefix','optional'))}"></label>
       <label>Unit cost<input name="unit_cost" type="number" min="0" step="0.01"></label>
-      <label>Unit price<input name="unit_price" type="number" min="0" step="0.01"></label>
+      <label>Unit price<input name="unit_price" type="number" min="0" step="0.01" value="${esc(catalogDefaultPrice(activeCatalog()[0]))}"></label>
       <button class="btn ghost small" type="button" onclick="this.closest('.bulk-receive-row').remove()">Remove</button>
     </div>`;
   }
@@ -147,13 +149,13 @@
       ${inventoryTool==='single'?`<div class="section-label">Receive one batch</div>
       ${activeCatalog().length&&data.locations.length?`
         <form class="ops-form" onsubmit="CloudLedger.addBatch(event)">
-          <label>Product<select name="plant_catalog_id" required>${activeCatalog().map(item=>option(item.id,[item.common_name,item.container_size].filter(Boolean).join(' · '))).join('')}</select></label>
+          <label>Product<select name="plant_catalog_id" required onchange="CloudLedger.applyCatalogDefaultPrice(this)">${catalogOptions()}</select></label>
           <label>Location<select name="location_id" required>${data.locations.map(item=>option(item.id,item.name)).join('')}</select></label>
           <label>Quantity<input name="quantity" type="number" min="1" required></label>
           <label>Stage<select name="stage">${STAGES.map(stage=>option(stage,label(stage))).join('')}</select></label>
           <label>Batch code<input name="batch_code" placeholder="${esc(codeHint('batch_prefix','optional'))}"></label>
           <label>Unit cost<input name="unit_cost" type="number" min="0" step="0.01"></label>
-          <label>Unit price<input name="unit_price" type="number" min="0" step="0.01"></label>
+          <label>Unit price<input name="unit_price" type="number" min="0" step="0.01" value="${esc(catalogDefaultPrice(activeCatalog()[0]))}"></label>
           <button class="btn primary" type="submit">Receive batch</button>
         </form>`:
         `<div class="empty">Add at least one location and one active catalog product before receiving inventory.</div>`}`:''}
@@ -265,6 +267,10 @@
     const payload={organization_id:organizationId(),common_name:String(form.get('common_name')).trim(),scientific_name:String(form.get('scientific_name')||'').trim()||null,cultivar:String(form.get('cultivar')||'').trim()||null,container_size:String(form.get('container_size')||'').trim()||null,sku:String(form.get('sku')||'').trim()||null,default_price:number('default_price'),watering_days:number('watering_days'),feeding_days:number('feeding_days'),status:'active'};
     const {error}=await client().from('plant_catalog').insert(payload); if(error)return showToast(error.message); await refresh('Catalog plant added');
   }
+  function applyCatalogDefaultPrice(select){
+    const price=select.closest('.bulk-receive-row,form')?.querySelector('[name="unit_price"]');
+    if(price)price.value=select.selectedOptions[0]?.dataset.defaultPrice||'';
+  }
   async function addBatch(event){
     event.preventDefault(); const form=new FormData(event.currentTarget); const quantity=Number(form.get('quantity'));
     const payload={target_organization_id:organizationId(),target_plant_catalog_id:form.get('plant_catalog_id'),target_location_id:form.get('location_id'),starting_quantity:quantity,target_stage:form.get('stage'),target_batch_code:String(form.get('batch_code')||'').trim()||null,target_unit_cost:form.get('unit_cost')?Number(form.get('unit_cost')):null,target_unit_price:form.get('unit_price')?Number(form.get('unit_price')):null};
@@ -329,5 +335,5 @@
   async function removeMember(profileId){const member=data.members.find(item=>item.profile_id===profileId);if(!member)return;const name=member.display_name||'this member';const warning=member.role==='owner'?`${name} is an organization owner. Their historical activity will remain, but their access will be removed.`:`Remove ${name} from this organization? Their historical activity will remain.`;if(!confirm(warning))return;const reason=prompt('Optional removal reason for the audit history:')||null;const {error}=await client().rpc('remove_organization_member',{target_organization_id:organizationId(),target_profile_id:profileId,change_reason:reason});if(error)return showToast(error.message);await LedgerAuth.refreshContext();showToast('Employee removed from organization');}
   async function uploadBatchPhoto(event,batchId){const file=event.target.files[0];if(!file)return;const path=`${organizationId()}/batches/${batchId}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi,'_')}`;const uploaded=await client().storage.from('greenhouse-photos').upload(path,file);if(uploaded.error)return showToast(uploaded.error.message);const {error}=await client().rpc('set_inventory_batch_photo',{target_batch_id:batchId,target_photo_path:path});if(error){await client().storage.from('greenhouse-photos').remove([path]);return showToast(error.message);}await refresh('Batch photo uploaded');}
 
-  window.CloudLedger={load,reset,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,addBatch,adjustStock,correctBatch,filterActivity,showMoreActivity,setInventoryTool,addBulkRow,bulkReceive,startCount,saveCountLine,finalizeCount,cancelCount,reportIssue,updateIssue,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,updateMember,removeMember,uploadBatchPhoto,getData:()=>data};
+  window.CloudLedger={load,reset,renderDashboard,renderInventory,renderSetup,renderOperations,renderTeam,addLocation,addCatalogPlant,applyCatalogDefaultPrice,addBatch,adjustStock,correctBatch,filterActivity,showMoreActivity,setInventoryTool,addBulkRow,bulkReceive,startCount,saveCountLine,finalizeCount,cancelCount,reportIssue,updateIssue,addTask,completeTask,seedDemo,dismissWelcome,inviteStaff,copyInvite,sendInvite,revokeInvite,replaceInvite,updateMember,removeMember,uploadBatchPhoto,getData:()=>data};
 })();
