@@ -83,3 +83,4 @@ The browser uses only the project's publishable key from `supabase-config.js`. D
 ## GitHub Pages
 
 The deployment workflow runs automatically after every push to `main`, verifies the repository quality gate, and publishes the static PWA to GitHub Pages. It can also be run manually from GitHub Actions when a redeployment is intentionally needed.
+ 
