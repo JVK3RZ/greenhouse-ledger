@@ -2,9 +2,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-const require=createRequire(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES?`${process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES}/package.json`:import.meta.url);
+const modules=process.env.GHL_BROWSER_MODULES||process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES;
+const require=createRequire(modules?`${modules}/package.json`:import.meta.url);
 const {chromium}=require('playwright');
-const browser=await chromium.launch({headless:true});
+const browser=await chromium.launch({headless:true,...(process.env.GHL_CHROMIUM_PATH?{executablePath:process.env.GHL_CHROMIUM_PATH}:{})});
 const page=await browser.newPage({viewport:{width:390,height:844}});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const auth=readFileSync(new URL('../auth.js',import.meta.url),'utf8');
