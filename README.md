@@ -88,3 +88,23 @@ The browser uses only the project's publishable key from `supabase-config.js`. D
 
 The deployment workflow runs automatically after every push to `main`, verifies the repository quality gate, and publishes the static PWA to GitHub Pages. It can also be run manually from GitHub Actions when a redeployment is intentionally needed.
  
+
+## Phase 27 — approval-based onboarding (1.17.0)
+
+New owners submit their name, business name, and email through **Request owner account**. Platform Admin lists the private requests and can approve/send, reject, resend, or revoke them. An approved email invitation opens account setup and creates exactly one owner workspace on acceptance. Existing users keep their login; additional customer workspaces also require approval. Platform administrators and the resettable demo retain direct workspace creation.
+
+Team email invitations now include a Supabase Auth activation link. New users set a username and password, then accept the assigned role without a second verification email. Owners can invite workers/managers; managers can invite workers. A copied team link alone cannot create a new account: new users need the email activation link. Seat limits, active organization access, and existing-member protections remain enforced.
+
+### Deployment order
+
+1. Apply `20260901141324_phase_27_approved_onboarding.sql` before publishing the frontend.
+2. Deploy `send-owner-activation` and the updated `send-organization-invitation`, including `_shared/activation.ts`.
+3. Confirm server-only `RESEND_API_KEY`, verified `INVITATION_FROM_EMAIL`, and `GREENHOUSE_LEDGER_SITE_URL`. No secret belongs in frontend configuration. Auth activation tokens are emailed only to the recipient and never returned to the inviting user.
+4. Allow the production site and its query-string invitation callbacks in Supabase Auth redirect URLs. Disable **Allow new users to sign up** in production Auth settings (`enable_signup = false` in this repository does not update a hosted project by itself). Keep email confirmation enabled and anonymous sign-in disabled. Admin-generated invitation links still provision invited users.
+5. Publish the frontend. Validate one controlled owner request → approve → email → set credentials → workspace, plus worker and manager invitations. Confirm ordinary direct signup is rejected and existing password/username sign-in still works.
+
+Owner invitation records expire after seven days; the email's Auth sign-in token may expire sooner according to Auth configuration. Resend replaces the owner code. Revocation blocks workspace membership even if the recipient already used the Auth link. It does not delete a pre-provisioned Auth identity or revoke an existing unrelated login. Failed email delivery remains visible and retryable. Requests are deduplicated by email, capped at 200 per day, and return no account-existence information to public callers. Admin review lists the latest 200 requests, prioritizing pending/approved records.
+
+Validation: `node scripts/verify.mjs`; run `supabase/tests/phase_27_onboarding.sql` after the migration inside an explicit transaction followed by `ROLLBACK`. Browser coverage: `node scripts/test-onboarding-browser.mjs` with Playwright installed (or the Codex runtime dependency path). The browser suite stubs Auth/data calls and does not replace the controlled production email smoke test.
+
+Phase 27 verification performed: migration and authorization suite passed in a rolled-back database transaction; repository gate and mocked Edge delivery suite passed locally. Browser suite is included but could not run here because the Chromium download was unavailable. Full Auth email delivery and production signup-disable checks remain rollout gates.
