@@ -1,4 +1,4 @@
-const CACHE_NAME = 'greenhouse-ledger-v26-care-automation-camera';
+const CACHE_NAME = 'greenhouse-ledger-v27-approved-onboarding';
 const APP_SHELL = [
   './',
   './index.html',

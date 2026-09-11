@@ -6,3 +6,13 @@ verify_jwt = true
 
 [functions.stripe-billing-webhook]
 verify_jwt = false
+
+# Production must also disable public signup in Auth settings before frontend rollout.
+[auth]
+enable_signup = false
+
+[functions.send-owner-activation]
+verify_jwt = true
+
+[functions.send-organization-invitation]
+verify_jwt = true

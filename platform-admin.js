@@ -1,6 +1,9 @@
 (function(){
   let overview={organizations:[],metrics:{organizations:0,active:0,trials:0,suspended:0}};
   let detail=null;
+  let ownerRequests=[];
+  let requestError='';
+  let reviewing=false;
   let query='';
   let loading=false;
 
@@ -27,6 +30,8 @@
     loading=false;
     if(error){showToast(error.message);renderContent();return;}
     overview=data||overview;
+    const requests=await client().rpc('list_owner_account_requests');
+    requestError=requests.error?.message||'';ownerRequests=requests.data||[];
     renderContent();
   }
 
@@ -48,10 +53,30 @@
     if(!context()?.isPlatformAdmin)return '<div class="empty">Platform administrator access required.</div>';
     const metrics=overview.metrics||{};
     return `<div class="platform-heading"><div><div class="section-label">Owner administration</div><h2>Customer access control</h2><p class="sub">Manage plans, trials, staff limits, and organization access without entering customer inventory.</p></div><span class="platform-private">Platform owner only</span></div>
+      ${ownerRequestMarkup()}
       <div class="metric-grid"><div class="metric"><span>Organizations</span><strong>${Number(metrics.organizations||0)}</strong></div><div class="metric"><span>Active</span><strong>${Number(metrics.active||0)}</strong></div><div class="metric"><span>Trials</span><strong>${Number(metrics.trials||0)}</strong></div><div class="metric"><span>Suspended / ended</span><strong>${Number(metrics.suspended||0)}</strong></div></div>
       <form class="platform-search" onsubmit="PlatformAdmin.search(event)"><label>Find an organization<input name="search" maxlength="100" value="${esc(query)}" placeholder="Greenhouse or business name"></label><button class="btn primary">Search</button>${query?'<button class="btn" type="button" onclick="PlatformAdmin.clearSearch()">Clear</button>':''}</form>
       ${loading?'<div class="empty">Loading organizations…</div>':organizationList()}
       ${detail?detailMarkup():''}`;
+  }
+
+  function ownerRequestMarkup(){
+    return `<section class="card"><h2>Owner account requests</h2><p>Approve a business to send its private activation email. Resending replaces the previous owner invitation.</p>${requestError?`<p role="alert">${esc(requestError)}</p>`:ownerRequests.map(r=>`<article class="card"><h3>${esc(r.business_name)}</h3><p>${esc(r.display_name)} · ${esc(r.email)}</p><p>${esc(label(r.status))} · ${esc(label(r.delivery_status))}${r.expires_at?` · expires ${date(r.expires_at)}`:''}</p>${['pending','approved'].includes(r.status)?`<div class="card-actions"><button class="btn primary" ${reviewing?'disabled':''} onclick="PlatformAdmin.reviewRequest('${r.id}','approve')">${r.status==='pending'?'Approve & send invitation':'Resend invitation'}</button><button class="btn ghost" ${reviewing?'disabled':''} onclick="PlatformAdmin.reviewRequest('${r.id}','${r.status==='pending'?'rejected':'revoked'}')">${r.status==='pending'?'Reject':'Revoke'}</button></div>`:''}</article>`).join('')||'<p>No owner requests yet.</p>'}</section>`;
+  }
+
+  async function reviewRequest(id,decision){
+    if(reviewing)return;
+    if(!confirm(decision==='approve'?'Approve this request and email a private activation invitation?':'Close this owner request? Any pending invitation will stop working.'))return;
+    reviewing=true;renderContent();
+    try{
+      if(decision==='approve'){
+        const {data:{session}}=await client().auth.getSession();
+        const response=await fetch(`${window.GREENHOUSE_SUPABASE.url}/functions/v1/send-owner-activation`,{method:'POST',headers:{'Content-Type':'application/json','apikey':window.GREENHOUSE_SUPABASE.publishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({request_id:id})});
+        const body=await response.json();if(!response.ok)throw new Error(body.error||'Invitation could not be sent');showToast(body.warning||'Owner activation email sent');
+      }else{
+        const {error}=await client().rpc('review_owner_account_request',{request_id:id,decision});if(error)throw error;showToast('Owner request updated');
+      }
+    }catch(error){showToast(error.message);}finally{reviewing=false;await load();}
   }
 
   function organizationList(){
@@ -91,5 +116,5 @@
 
   function clearSearch(){query='';load('');}
 
-  window.PlatformAdmin={open,load,search,manage,closeDetail,saveEntitlement,addNote,clearSearch,render:renderMarkup};
+  window.PlatformAdmin={reviewRequest,open,load,search,manage,closeDetail,saveEntitlement,addNote,clearSearch,render:renderMarkup};
 })();

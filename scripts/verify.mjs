@@ -19,6 +19,11 @@ function walk(directory, files = []) {
   return files;
 }
 
+try {
+  execFileSync(process.execPath, [join(root, 'scripts/test-activation-delivery.mjs')], {stdio:'pipe'});
+  pass('Activation delivery authentication, recipient binding, and failure handling pass');
+} catch (error) { fail(`Activation delivery regression failed: ${error.stderr?.toString().trim() || error.message}`); }
+
 const allFiles = walk(root);
 const javascript = allFiles.filter(path => extname(path) === '.js');
 for (const path of javascript) {
@@ -57,7 +62,7 @@ const demoSeedLockRepair = read('supabase/migrations/20260826182000_repair_demo_
 const platformAdmin = read('platform-admin.js');
 const dataPortability = read('data-portability.js');
 const catalogOnboarding = read('catalog-onboarding.js');
-const invitationFunction = read('supabase/functions/send-organization-invitation/index.ts');
+const invitationFunction = read('supabase/functions/_shared/activation.ts') + read('supabase/migrations/20260901141324_phase_27_approved_onboarding.sql');
 const demoResetFunction = read('supabase/functions/reset-demo-workspace/index.ts');
 const checkoutFunction = read('supabase/functions/create-billing-checkout/index.ts');
 const portalFunction = read('supabase/functions/create-billing-portal/index.ts');
@@ -67,7 +72,7 @@ const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => m
 
 if (!index.includes(`pilot ${packageJson.version}`) || !settings.includes(`<strong>${packageJson.version}</strong>`)) {
   fail('The footer and About settings version must match package.json');
-} else if (!/greenhouse-ledger-v26-care-automation-camera/.test(worker)) {
+} else if (!/greenhouse-ledger-v27-approved-onboarding/.test(worker)) {
   fail('Phase 25 must invalidate the previous offline app shell');
 } else {
   pass('Release labels are synchronized and the catalog hotfix refreshes the offline app shell');
@@ -183,9 +188,9 @@ if (/function\s+render\s*\(/.test(settings)) {
   pass('Settings dropdown navigation routes through the main application renderer');
 }
 
-if (!/get_organization_invitation_details/.test(auth) || !/emailRedirectTo\s*:\s*window\.location\.href/.test(auth)) {
+if (!/get_organization_invitation_details/.test(auth) || !/renderActivation/.test(auth)) {
   fail('Invitation acceptance must preview safely and survive email confirmation');
-} else if (!/Create owner account/.test(auth) || !/Create account & accept/.test(auth)) {
+} else if (!/Request owner account/.test(auth) || /client\.auth\.signUp/.test(auth)) {
   fail('Owner-first and invited-staff onboarding must remain distinct');
 } else if (!/revoke_organization_invitation/.test(cloudLedger) || !/send-organization-invitation/.test(cloudLedger)) {
   fail('Team invitation controls must use the protected lifecycle endpoints');
@@ -285,7 +290,7 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization|23-owner-administration|24-employee-management|25-(?:subscription-billing|batch-price-prefill|csv-price-alias)|26-care-automation-camera)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization|23-owner-administration|24-employee-management|25-(?:subscription-billing|batch-price-prefill|csv-price-alias)|26-care-automation-camera|27-approved-onboarding)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
