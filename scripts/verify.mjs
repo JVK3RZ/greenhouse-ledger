@@ -72,10 +72,16 @@ const shellAssets = [...worker.matchAll(/["']\.\/([^"']+)["']/g)].map(match => m
 
 if (!index.includes(`pilot ${packageJson.version}`) || !settings.includes(`<strong>${packageJson.version}</strong>`)) {
   fail('The footer and About settings version must match package.json');
-} else if (!/greenhouse-ledger-v27-approved-onboarding/.test(worker)) {
-  fail('Phase 25 must invalidate the previous offline app shell');
+} else if (!/greenhouse-ledger-v27-ios-form-zoom-hotfix/.test(worker)) {
+  fail('The iOS form zoom hotfix must invalidate the previous offline app shell');
 } else {
-  pass('Release labels are synchronized and the catalog hotfix refreshes the offline app shell');
+  pass('Release labels are synchronized and the iOS form zoom hotfix refreshes the offline app shell');
+}
+
+if (!/@media \(max-width:720px\)[\s\S]*input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="file"\]\)[\s\S]*textarea\{font-size:16px!important;\}/.test(index)) {
+  fail('Phone-width text controls must prevent iOS focus zoom without resizing checkbox, radio, or file inputs');
+} else {
+  pass('Phone-width text controls prevent iOS focus zoom');
 }
 
 if (!/name="create_care_tasks" type="checkbox"/.test(cloudLedger) || !/catalogCareSummary/.test(cloudLedger)) {
@@ -290,7 +296,7 @@ if (!/Plant health &amp; issues/.test(cloudLedger) || !/Report an observation/.t
   fail('Issue photos must use the organization- and issue-scoped storage path');
 } else if (!/issue-report-form\{[^}]*grid-template-columns:minmax\(0,2fr\)/.test(index) || !/issue-report-form input,[^{]*\{[^}]*min-width:0/.test(index)) {
   fail('Plant-health form columns and controls must remain constrained inside their card');
-} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization|23-owner-administration|24-employee-management|25-(?:subscription-billing|batch-price-prefill|csv-price-alias)|26-care-automation-camera|27-approved-onboarding)/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
+} else if (!/greenhouse-ledger-v(?:17-form-containment|18-backup-recovery|19-record-corrections|20-business-settings|21-(?:fresh-start-demo|catalog-interactions)|22-multi-organization|23-owner-administration|24-employee-management|25-(?:subscription-billing|batch-price-prefill|csv-price-alias)|26-care-automation-camera|27-(?:approved-onboarding|ios-form-zoom-hotfix))/.test(worker) || /b\.location\?\.name\]\.filter\(Boolean\)\.join/.test(cloudLedger)) {
   fail('The Phase 17 containment repair must invalidate the old app shell and keep batch labels compact');
 } else {
   pass('Plant-health observations, protected photos, and append-only follow-up history are organization-scoped');
