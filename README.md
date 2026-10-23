@@ -2,7 +2,7 @@
 
 Greenhouse Ledger is an installable, multi-tenant greenhouse inventory and operations platform.
 
-Current pilot release candidate: `1.15.2` (CSV selling-price aliases).
+Current pilot release candidate: `1.17.1` (iOS form-field zoom hotfix).
 
 ## Open the app
 
@@ -108,3 +108,7 @@ Owner invitation records expire after seven days; the email's Auth sign-in token
 Validation: `node scripts/verify.mjs`; run `supabase/tests/phase_27_onboarding.sql` after the migration inside an explicit transaction followed by `ROLLBACK`. Browser coverage: `node scripts/test-onboarding-browser.mjs` with Playwright installed (or the Codex runtime dependency path). The browser suite stubs Auth/data calls and does not replace the controlled production email smoke test.
 
 Phase 27 verification performed: migration and authorization suite passed in a rolled-back database transaction; repository gate and mocked Edge delivery suite passed locally. Browser suite is included but could not run here because the Chromium download was unavailable. Full Auth email delivery and production signup-disable checks remain rollout gates.
+
+### 1.17.1 mobile hotfix
+
+On phone-width layouts, text-entry controls use a minimum 16px font size so iOS does not automatically zoom the installed PWA when a user focuses a field. Checkbox, radio, and file inputs retain their existing sizing. The offline app-shell cache is rotated so installed copies receive the correction.
